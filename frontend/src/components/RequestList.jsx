@@ -1,0 +1,41 @@
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+
+export default function RequestList({ title, requests, viewAllLink, renderStatusStepper }) {
+  const limitedRequests = requests.slice(0, 3); // Show a few requests
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>{title} ({requests.length})</CardTitle>
+        {requests.length > 3 && (
+          <Link to={viewAllLink.to} state={viewAllLink.state}>
+            <Button variant="ghost" size="sm">Vezi tot</Button>
+          </Link>
+        )}
+      </CardHeader>
+      <CardContent>
+        {limitedRequests.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4">
+            {limitedRequests.map(request => (
+                <div key={request.id} className="flex flex-col p-2 rounded-md hover:bg-slate-50">
+                    <div className="flex items-center justify-between">
+                        <p className="font-medium truncate">{request.title}</p>
+                        <span className="text-xs text-slate-500">{new Date(request.created_at).toLocaleDateString()}</span>
+                    </div>
+                    {renderStatusStepper && (
+                        <div className="mt-2">
+                            {renderStatusStepper(request)}
+                        </div>
+                    )}
+                </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-center text-slate-500 py-4">Nicio cerere în această categorie.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
