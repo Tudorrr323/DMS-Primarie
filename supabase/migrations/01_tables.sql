@@ -16,7 +16,7 @@ DROP TYPE IF EXISTS document_category_type CASCADE;
 CREATE TYPE user_role AS ENUM ('admin', 'angajat', 'cetatean');
 CREATE TYPE department_type AS ENUM ('verificare_initiala', 'verificare_tehnica', 'verificare_finala');
 CREATE TYPE workflow_stage AS ENUM ('submitted', 'review_step1', 'review_step2', 'review_step3', 'completed', 'rejected');
-CREATE TYPE document_category_type AS ENUM ('urbanism', 'taxe', 'mediu', 'alte');
+CREATE TYPE document_category_type AS ENUM ('cerere_cetatean', 'act_administrativ', 'contract', 'raport');
 
 -- C. CREARE TABELE
 CREATE TABLE public.profiles (
@@ -32,7 +32,7 @@ CREATE TABLE public.documents (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   title text NOT NULL,
   description text,
-  category document_category_type DEFAULT 'urbanism', 
+  category document_category_type DEFAULT 'cerere_cetatean', 
   workflow_stage workflow_stage DEFAULT 'submitted',
   current_assignee uuid REFERENCES public.profiles(id),
   uploaded_by uuid REFERENCES auth.users NOT NULL,
