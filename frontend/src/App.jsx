@@ -1,24 +1,27 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import Layout from './components/Layout';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
-  // Aici vom verifica mai tarziu daca userul e logat
-  const isAuthenticated = true; // Simulam ca e logat pentru moment
-
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public Routes */}
         <Route path="/login" element={<Login />} />
-        
-        {/* Ruta principala: Daca e logat arata Dashboard, altfel trimite la Login */}
-        <Route 
-          path="/" 
-          element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} 
-        />
-        
-        {/* Orice alta ruta necunoscuta duce la login */}
-        <Route path="*" element={<Navigate to="/login" />} />
+        {/* Add Register route here later */}
+
+        {/* Protected Routes (Require Login) */}
+        <Route element={<ProtectedRoute />}>
+          <Route element={<Layout />}>
+            <Route path="/" element={<Dashboard />} />
+            {/* Future routes like /documents will go here */}
+          </Route>
+        </Route>
+
+        {/* Fallback */}
+        <Route path="*" element={<Login />} />
       </Routes>
     </BrowserRouter>
   )
