@@ -1,19 +1,22 @@
 -- NUME FISIER: 01_tables.sql
 
--- A. CURĂȚENIE (Doar dacă vrei reset total, altfel comentează liniile cu DROP TABLE)
+-- A. CURĂȚENIE (Reset Total)
 DROP TABLE IF EXISTS public.signatures CASCADE;
 DROP TABLE IF EXISTS public.workflow_history CASCADE;
 DROP TABLE IF EXISTS public.document_files CASCADE;
 DROP TABLE IF EXISTS public.documents CASCADE;
 DROP TABLE IF EXISTS public.profiles CASCADE;
+
 DROP TYPE IF EXISTS workflow_stage CASCADE;
 DROP TYPE IF EXISTS department_type CASCADE;
 DROP TYPE IF EXISTS user_role CASCADE;
+DROP TYPE IF EXISTS document_category_type CASCADE;
 
--- B. CREARE TIPURI
+-- B. CREARE TIPURI (ENUMS)
 CREATE TYPE user_role AS ENUM ('admin', 'angajat', 'cetatean');
 CREATE TYPE department_type AS ENUM ('verificare_initiala', 'verificare_tehnica', 'verificare_finala');
 CREATE TYPE workflow_stage AS ENUM ('submitted', 'review_step1', 'review_step2', 'review_step3', 'completed', 'rejected');
+CREATE TYPE document_category_type AS ENUM ('urbanism', 'taxe', 'mediu', 'alte');
 
 -- C. CREARE TABELE
 CREATE TABLE public.profiles (
@@ -29,7 +32,7 @@ CREATE TABLE public.documents (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   title text NOT NULL,
   description text,
-  category text, 
+  category document_category_type DEFAULT 'urbanism', 
   workflow_stage workflow_stage DEFAULT 'submitted',
   current_assignee uuid REFERENCES public.profiles(id),
   uploaded_by uuid REFERENCES auth.users NOT NULL,
@@ -55,7 +58,10 @@ CREATE TABLE public.workflow_history (
   from_stage workflow_stage,
   to_stage workflow_stage,
   action_by uuid REFERENCES public.profiles(id),
-  action_type text CHECK (action_type IN ('stage_change', 'rejection', 'comment', 'signature')),
+  
+  -- MODIFICARE AICI: Am adaugat 'file_upload' in lista
+  action_type text CHECK (action_type IN ('stage_change', 'rejection', 'comment', 'signature', 'file_upload')),
+  
   comment text,
   created_at timestamp with time zone DEFAULT now()
 );
@@ -63,13 +69,17 @@ CREATE TABLE public.workflow_history (
 CREATE TABLE public.signatures (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   document_id uuid REFERENCES public.documents(id) ON DELETE CASCADE,
+  
+  -- MODIFICARE AICI: Am adaugat legatura cu fisierul specific (Optional)
+  file_id uuid REFERENCES public.document_files(id) ON DELETE CASCADE,
+  
   signed_by uuid REFERENCES public.profiles(id),
   signature_text text,
   workflow_stage workflow_stage,
   created_at timestamp with time zone DEFAULT now()
 );
 
--- D. ACTIVARE RLS (Important să fie aici)
+-- D. ACTIVARE RLS
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.document_files ENABLE ROW LEVEL SECURITY;
