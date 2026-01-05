@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthContext } from '../contexts/AuthContext';
 import { EmployeeService } from '../lib/employeeService';
+import { getWorkflowStageInfo } from '../lib/workflow-utils';
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, Inbox, History, ArrowRight, UserPlus, Send, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -150,8 +151,10 @@ export default function InitialVerificationDashboard() {
                                     </Link>
                                 </CardTitle>
                                 <CardDescription>
-                                    Depus la: {new Date(req.created_at).toLocaleDateString()} &bull; 
-                                    Status: {req.workflow_stage}
+                                    Depus la: {new Date(req.created_at).toLocaleDateString('ro-RO')} &bull; 
+                                    Status: <span className={`font-medium ${getWorkflowStageInfo(req.workflow_stage).textColor}`}>
+                                        {getWorkflowStageInfo(req.workflow_stage).label}
+                                    </span>
                                 </CardDescription>
                             </div>
                             
@@ -163,36 +166,11 @@ export default function InitialVerificationDashboard() {
                             )}
 
                             {activeTab === 'tasks' && (
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <Button size="sm" variant="default" onClick={() => handleAutoAssign(req.id)} className="bg-emerald-600 hover:bg-emerald-700">
-                                        <Send className="mr-2 h-4 w-4" />
-                                        Auto-Trimite
+                                <Link to={`/requests/${req.id}`}>
+                                    <Button size="sm" variant="outline">
+                                        Gestionează
                                     </Button>
-
-                                    <div className="flex items-center gap-2 border rounded-md p-1 bg-slate-50">
-                                        <Select 
-                                            value={assigningTo[req.id] || ""} 
-                                            onValueChange={(val) => setAssigningTo(prev => ({...prev, [req.id]: val}))}
-                                        >
-                                            <SelectTrigger className="h-8 w-[180px] text-xs">
-                                                <SelectValue placeholder="Alocă unui coleg..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {colleagues.map(col => (
-                                                    <SelectItem key={col.id} value={col.id}>{col.full_name || col.email}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => handleManualAssign(req.id)}>
-                                            <UserPlus className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-
-                                    <Button size="sm" variant="secondary" onClick={() => handleSendToPool(req.id)}>
-                                        <Users className="mr-2 h-4 w-4" />
-                                        La Comun
-                                    </Button>
-                                </div>
+                                </Link>
                             )}
                         </CardHeader>
                         <CardContent>

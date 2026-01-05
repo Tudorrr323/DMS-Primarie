@@ -5,9 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "react-router-dom";
-import { PlusCircle, Loader2, Search, X } from 'lucide-react';
+import { PlusCircle, Loader2, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import RequestCard from '@/components/RequestCard';
 import { DatePicker } from '@/components/ui/date-picker';
+
+const ITEMS_PER_PAGE = 10;
 
 const CATEGORIES = [
   { value: 'cerere_cetatean', label: 'Cerere Cetățean' },
@@ -39,6 +41,8 @@ export default function Requests() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
 
   const [filters, setFilters] = useState({
     search: '',
@@ -55,7 +59,7 @@ export default function Requests() {
     try {
       let query = supabase
         .from('documents')
-        .select('*');
+        .select('*', { count: 'exact' });
 
       if (filters.search) {
         query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
@@ -82,18 +86,25 @@ export default function Requests() {
       if (sortColumn && sortDirection) {
           query = query.order(sortColumn, { ascending: sortDirection === 'asc' });
       }
+      
+      // Pagination Logic
+      const from = (currentPage - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+      
+      query = query.range(from, to);
 
-      const { data, error: queryError } = await query;
+      const { data, error: queryError, count } = await query;
       if (queryError) throw queryError;
 
       setRequests(data);
+      setTotalPages(Math.ceil(count / ITEMS_PER_PAGE));
     } catch (err) {
       setError(err.message);
       console.error('Eroare la încărcare:', err.message);
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters, currentPage]);
 
   useEffect(() => {
     fetchRequests();
@@ -102,14 +113,17 @@ export default function Requests() {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFilters(prev => ({ ...prev, [name]: value }));
+    setCurrentPage(1); // Reset to first page on filter change
   };
 
   const handleFilterChange = (name, value) => {
     setFilters(prev => ({ ...prev, [name]: value === 'all' ? '' : value }));
+    setCurrentPage(1); // Reset to first page on filter change
   };
   
   const handleDateChange = (date) => {
     setFilters(prev => ({...prev, date: date}));
+    setCurrentPage(1); // Reset to first page on filter change
   };
 
   const handleResetFilters = () => {
@@ -120,6 +134,14 @@ export default function Requests() {
       date: null,
       sort: 'created_at,desc'
     });
+    setCurrentPage(1);
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+        setCurrentPage(newPage);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   return (
@@ -176,9 +198,36 @@ export default function Requests() {
             <p className="text-slate-500 mt-1">Încearcă să ajustezi filtrele de căutare.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
-            {requests.map((request) => (<RequestCard key={request.id} request={request} />))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
+                {requests.map((request) => (<RequestCard key={request.id} request={request} />))}
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-4 mt-8">
+                    <Button 
+                        variant="outline" 
+                        size="icon" 
+                        onClick={() => handlePageChange(currentPage - 1)} 
+                        disabled={currentPage <= 1}
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm text-slate-600 font-medium">
+                        Pagina {currentPage} din {totalPages}
+                    </span>
+                    <Button 
+                        variant="outline" 
+                        size="icon" 
+                        onClick={() => handlePageChange(currentPage + 1)} 
+                        disabled={currentPage >= totalPages}
+                    >
+                        <ChevronRight className="h-4 w-4" />
+                    </Button>
+                </div>
+            )}
+          </>
         )}
       </div>
     </div>

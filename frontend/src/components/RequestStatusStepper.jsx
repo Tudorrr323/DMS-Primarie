@@ -1,16 +1,11 @@
 import React from 'react';
 import { cn } from "@/lib/utils";
 import { XCircle } from 'lucide-react';
+import { WORKFLOW_STAGES } from '../lib/workflow-utils';
 
-const STATUS_CONFIG = {
-  submitted:    { label: 'Depusă',               color: '#9ca3af', bgColor: 'bg-gray-400', textColor: 'text-gray-500', order: 0 },
-  review_step1: { label: 'Verificare initiala',  color: '#3b82f6', bgColor: 'bg-blue-500',   textColor: 'text-blue-600',   order: 1 },
-  review_step2: { label: 'Verificare tehnica',   color: '#f97316', bgColor: 'bg-orange-500', textColor: 'text-orange-600', order: 2 },
-  review_step3: { label: 'Verificare finala',    color: '#8b5cf6', bgColor: 'bg-purple-500', textColor: 'text-purple-600', order: 3 },
-  completed:    { label: 'Finalizata',           color: '#22c55e', bgColor: 'bg-green-500',  textColor: 'text-green-600',  order: 4 },
-};
-
-const STATUS_STEPS = Object.keys(STATUS_CONFIG).sort((a, b) => STATUS_CONFIG[a].order - STATUS_CONFIG[b].order);
+const STATUS_STEPS = Object.keys(WORKFLOW_STAGES)
+  .filter(key => key !== 'rejected')
+  .sort((a, b) => WORKFLOW_STAGES[a].order - WORKFLOW_STAGES[b].order);
 
 export default function RequestStatusStepper({ currentStatus }) {
   const currentStepIndex = STATUS_STEPS.indexOf(currentStatus);
@@ -29,11 +24,11 @@ export default function RequestStatusStepper({ currentStatus }) {
         </div>
       ) : (
         STATUS_STEPS.map((statusKey, index) => {
-          const step = STATUS_CONFIG[statusKey];
+          const step = WORKFLOW_STAGES[statusKey];
           const isCompleted = index < currentStepIndex;
           const isCurrent = index === currentStepIndex;
           
-          const prevStep = index > 0 ? STATUS_CONFIG[STATUS_STEPS[index - 1]] : null;
+          const prevStep = index > 0 ? WORKFLOW_STAGES[STATUS_STEPS[index - 1]] : null;
           
           return (
             <React.Fragment key={statusKey}>

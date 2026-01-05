@@ -40,9 +40,13 @@ export default function Layout() {
 
   const getNavLinks = () => {
     const baseLinks = [
-      { to: '/requests', text: 'Cereri', icon: FileText },
       { to: '/profile', text: 'Profilul meu', icon: User },
     ];
+
+    // Adăugăm link-ul de 'Cereri' doar pentru cetățeni
+    if (profile?.role === 'cetatean') {
+      baseLinks.unshift({ to: '/requests', text: 'Cereri', icon: FileText });
+    }
 
     let homeLink = { to: '/', text: 'Meniu Principal', icon: Home };
 
@@ -98,7 +102,11 @@ export default function Layout() {
         ))}
       </nav>
       <div className="p-4 border-t border-slate-100">
-        <Button onClick={handleLogout} variant="ghost" className="w-full justify-start text-red-600 hover:bg-red-50 hover:text-red-600">
+        <Button 
+          onClick={handleLogout} 
+          variant="ghost" 
+          className="w-full justify-start text-red-600 hover:bg-red-600 hover:text-white transition-colors"
+        >
           Deconectare
         </Button>
       </div>

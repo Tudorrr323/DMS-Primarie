@@ -19,9 +19,9 @@ export default function RequestList({ title, requests, viewAllLink, renderStatus
         {limitedRequests.length > 0 ? (
           <div className="grid grid-cols-1 gap-4">
             {limitedRequests.map(request => (
-                <div key={request.id} className="flex flex-col p-2 rounded-md hover:bg-slate-50">
+                <Link key={request.id} to={`/requests/${request.id}`} className="flex flex-col p-3 rounded-md border border-transparent hover:border-slate-200 hover:bg-slate-50 transition-all">
                     <div className="flex items-center justify-between">
-                        <p className="font-medium truncate">{request.title}</p>
+                        <p className="font-medium text-slate-900 truncate">{request.title}</p>
                         <span className="text-xs text-slate-500">{new Date(request.created_at).toLocaleDateString()}</span>
                     </div>
                     {renderStatusStepper && (
@@ -29,7 +29,7 @@ export default function RequestList({ title, requests, viewAllLink, renderStatus
                             {renderStatusStepper(request)}
                         </div>
                     )}
-                </div>
+                </Link>
             ))}
           </div>
         ) : (
