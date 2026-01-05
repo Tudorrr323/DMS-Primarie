@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { AuthService } from '../lib/AuthService';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,16 +19,30 @@ export default function Login() {
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { profile } = await AuthService.login(email, password);
 
-      if (error) {
-        throw error;
+      // Redirection Logic
+      if (profile.role === 'admin') {
+        navigate('/admin');
+      } else if (profile.role === 'angajat') {
+        switch (profile.department) {
+          case 'verificare_initiala':
+            navigate('/verificare-initiala');
+            break;
+          case 'verificare_tehnica':
+            navigate('/verificare-tehnica');
+            break;
+          case 'verificare_finala':
+            navigate('/verificare-finala');
+            break;
+          default:
+            navigate('/'); // Fallback
+        }
+      } else {
+        // Cetatean or unknown
+        navigate('/');
       }
 
-      navigate('/');
     } catch (error) {
       console.error('Login Error:', error);
       setError(error.message);

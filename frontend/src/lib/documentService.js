@@ -22,7 +22,7 @@ export const DocumentService = {
     // Start Query: Selectăm tot + numele celui care a încărcat
     let query = supabase
       .from('documents')
-      .select('*, profiles:uploaded_by(full_name, email)')
+      .select('*')
       .order('created_at', { ascending: false }); // Cele mai noi primele (Index activat)
 
     // A. SEARCH BAR (Căutare "Fuzzy")
@@ -37,8 +37,8 @@ export const DocumentService = {
     }
 
     // C. FILTRU STATUS (WORKFLOW)
-    if (filters.status && filters.status !== 'all') {
-      query = query.eq('workflow_stage', filters.status);
+    if (filters.workflow_stage && filters.workflow_stage !== 'all') {
+      query = query.eq('workflow_stage', filters.workflow_stage);
     }
 
     // D. FILTRU DATĂ (Interval 24h)
@@ -47,6 +47,20 @@ export const DocumentService = {
       query = query
         .gte('created_at', `${filters.date}T00:00:00`)
         .lte('created_at', `${filters.date}T23:59:59`);
+    }
+
+    // E. FILTRU UPLOADER
+    if (filters.uploaded_by) {
+        query = query.eq('uploaded_by', filters.uploaded_by);
+    }
+
+    // F. FILTRU ASIGNEE
+    if (filters.assignee) {
+        if (filters.assignee === 'is.null') {
+            query = query.is('current_assignee', null);
+        } else {
+            query = query.eq('current_assignee', filters.assignee);
+        }
     }
 
     const { data, error } = await query;
@@ -130,5 +144,39 @@ export const DocumentService = {
       }]);
 
     if (dbError) throw dbError;
+  },
+
+  /**
+   * 5. PREIA DOCUMENT (ASIGNARE)
+   * ----------------------------
+   * Atribuie documentul utilizatorului curent și opțional schimbă stadiul.
+   */
+  async assignToMe(documentId, userId, newStage = null) {
+    const updates = { current_assignee: userId };
+    if (newStage) {
+      updates.workflow_stage = newStage;
+    }
+
+    const { data, error } = await supabase
+      .from('documents')
+      .update(updates)
+      .eq('id', documentId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    
+    // Logăm acțiunea în istoric (Manual, pentru că triggerul e generic)
+    // Deși avem trigger pe update, e bine să avem un mesaj explicit dacă vrem.
+    // Dar momentan ne bazăm pe trigger-ul existent sau adăugăm unul manual.
+    // Vom adăuga manual o intrare în istoric pentru claritate.
+    await supabase.from('workflow_history').insert({
+        document_id: documentId,
+        action_by: userId,
+        action_type: 'comment', // Sau un tip nou 'assignment' daca modificam enum-ul, momentan 'comment' e safe
+        comment: `A preluat cererea pentru verificare.${newStage ? ' Status actualizat la: ' + newStage : ''}`
+    });
+
+    return data;
   }
 };

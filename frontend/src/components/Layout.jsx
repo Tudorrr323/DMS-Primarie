@@ -1,9 +1,8 @@
-import { useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, FileText, User, Menu } from 'lucide-react';
 import { useAuthContext } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Toaster } from 'sonner';
 
@@ -12,22 +11,74 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [profile, setProfile] = useState(null);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user) return;
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (error) throw error;
+        setProfile(data);
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+      }
+    };
+
+    fetchProfile();
+  }, [user]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/login');
   };
 
-  const navLinks = [
-    { to: '/', text: 'Meniu Principal', icon: Home }, // Changed 'Dashboard' to 'Meniu Principal'
-    { to: '/requests', text: 'Cereri', icon: FileText },
-    { to: '/profile', text: 'Profilul meu', icon: User },
-  ];
+  const getNavLinks = () => {
+    const baseLinks = [
+      { to: '/requests', text: 'Cereri', icon: FileText },
+      { to: '/profile', text: 'Profilul meu', icon: User },
+    ];
+
+    let homeLink = { to: '/', text: 'Meniu Principal', icon: Home };
+
+    if (profile?.role === 'admin') {
+      homeLink = { to: '/admin', text: 'Meniu Principal', icon: Home };
+    } else if (profile?.role === 'angajat') {
+      switch (profile.department) {
+        case 'verificare_initiala':
+          homeLink = { to: '/verificare-initiala', text: 'Meniu Principal', icon: Home };
+          break;
+        case 'verificare_tehnica':
+          homeLink = { to: '/verificare-tehnica', text: 'Meniu Principal', icon: Home };
+          break;
+        case 'verificare_finala':
+          homeLink = { to: '/verificare-finala', text: 'Meniu Principal', icon: Home };
+          break;
+        default:
+          homeLink = { to: '/', text: 'Meniu Principal', icon: Home };
+      }
+    }
+
+    return [homeLink, ...baseLinks];
+  };
+
+  const navLinks = getNavLinks();
+
+  const getPortalTitle = () => {
+    if (profile?.role === 'admin') return 'Portal Admin';
+    if (profile?.role === 'angajat') return 'Portal Angajat';
+    return 'Portal Cetățean';
+  };
 
   const SidebarContent = () => (
     <>
       <div className="p-6 border-b border-slate-100">
-        <h1 className="text-xl font-bold text-slate-900">Portal Cetățean</h1>
+        <h1 className="text-xl font-bold text-slate-900">{getPortalTitle()}</h1>
       </div>
       <nav className="flex-1 p-4 space-y-1">
         {navLinks.map((link) => (

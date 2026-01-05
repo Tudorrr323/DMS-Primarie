@@ -1,108 +1,194 @@
 import { supabase } from '../lib/supabase';
 
 /**
- * SERVICIUL PENTRU ANGAJAȚI
- * Conține logica de Workflow: Aprobare, Respingere, Semnare, Asignare.
+ * SERVICIUL PENTRU ANGAJAȚI (CLIENT-SIDE LOGIC)
+ * Implementează logica de business direct în frontend pentru a evita 
+ * dependența de RPC-uri care nu există sau sunt incompatibile.
  */
 export const EmployeeService = {
-  
+
+  // ==============================================================
+  // A. ACȚIUNI DE PRELUARE ȘI PROCESARE
+  // ==============================================================
+
   /**
    * 1. PREIA DOSARUL ("ASSIGN TO ME")
-   * ---------------------------------
-   * Mută dosarul din "Coadă" în "Dosarele Mele".
-   * Nimeni altcineva nu va mai putea lucra pe el.
+   * Mută dosarul din "Coadă" în "Dosarele Mele" (review_step1).
    */
-  async assignToMe(docId) {
-    const { error } = await supabase.rpc('assign_to_me', { 
-      p_doc_id: docId 
-    });
+  async assignToMe(docId, userId) {
+    // 1. Update Document
+    const { error } = await supabase
+      .from('documents')
+      .update({
+        current_assignee: userId,
+        workflow_stage: 'review_step1', // Asumăm că preluarea din queue îl duce în step1
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', docId);
+
     if (error) throw error;
+
+    // 2. Log History
+    await supabase.from('workflow_history').insert({
+      document_id: docId,
+      action_by: userId,
+      action_type: 'stage_change',
+      from_stage: 'submitted',
+      to_stage: 'review_step1',
+      comment: 'Preluat manual din coada de așteptare.'
+    });
   },
 
   /**
    * 2. APROBĂ DOSARUL (STANDARD / MANUAL)
-   * -------------------------------------
-   * Mută dosarul la pasul următor.
-   * * @param {string} docId - ID-ul documentului
-   * @param {string|null} targetUserId - (Opțional) 
-   * - Dacă e NULL: Dosarul merge în COADĂ (oricine de la pasul următor îl poate lua).
-   * - Dacă e ID VALID: Dosarul merge DIRECT la acel coleg (Manual Assign).
+   * Mută dosarul la pasul următor (review_step2 - Tehnic).
    */
-  async approve(docId, targetUserId = null) {
-    const { error } = await supabase.rpc('process_document', {
-      p_doc_id: docId,
-      p_action: 'approve',
-      p_target_assignee: targetUserId 
-    });
+  async approve(docId, currentUserId, targetAssigneeId = null) {
+    const nextStage = 'review_step2';
+
+    // 1. Update Document
+    const { error } = await supabase
+      .from('documents')
+      .update({
+        workflow_stage: nextStage,
+        current_assignee: targetAssigneeId, // Poate fi NULL (Pool) sau ID (Manual)
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', docId);
+
     if (error) throw error;
+
+    // 2. Log History
+    await supabase.from('workflow_history').insert({
+      document_id: docId,
+      action_by: currentUserId,
+      action_type: 'stage_change',
+      from_stage: 'review_step1',
+      to_stage: nextStage,
+      comment: targetAssigneeId 
+        ? 'Aprobat și alocat manual unui coleg.' 
+        : 'Aprobat și trimis în coada comună a departamentului tehnic.'
+    });
   },
 
   /**
    * 3. APROBĂ DOSARUL (AUTO-ASSIGN / SMART)
-   * ---------------------------------------
-   * Caută automat colegul cu cele mai puține dosare și i-l trimite direct.
-   * * @param {string} docId - ID-ul documentului
-   * @param {string} nextDepartment - Unde merge dosarul? (ex: 'verificare_tehnica')
+   * Caută automat colegul cel mai liber din departamentul următor.
    */
-  async approveAutoAssign(docId, nextDepartment) {
-    // A. Găsim colegul cel mai liber
-    const { data: bestEmployeeId, error: findError } = await supabase.rpc('get_least_loaded_employee', {
-      p_dept: nextDepartment
-    });
-    
-    if (findError) throw findError;
-    if (!bestEmployeeId) throw new Error("Nu am găsit niciun angajat disponibil.");
+  async approveAutoAssign(docId, currentUserId, nextDepartment) {
+    // A. Găsim toți angajații din departamentul țintă
+    const { data: employees, error: empError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'angajat')
+        .eq('department', nextDepartment);
 
-    // B. Aprobăm și îi dăm lui dosarul
-    await this.approve(docId, bestEmployeeId);
+    if (empError) throw empError;
+    if (!employees || employees.length === 0) throw new Error("Nu există angajați în departamentul " + nextDepartment);
+
+    // B. Pentru fiecare, numărăm task-urile active
+    const employeeIds = employees.map(e => e.id);
     
-    return bestEmployeeId; // Returnăm ID-ul ca să poți afișa un mesaj de succes
+    // Fetch active documents for these employees
+    const { data: docs, error: docError } = await supabase
+        .from('documents')
+        .select('current_assignee')
+        .in('current_assignee', employeeIds)
+        .not('workflow_stage', 'in', '("completed","rejected")'); // Pseudo-code filter logic, fixed below
+
+    if (docError) throw docError;
+
+    // Count workload
+    const workload = {};
+    employeeIds.forEach(id => workload[id] = 0);
+    docs.forEach(d => {
+        if (workload[d.current_assignee] !== undefined) {
+            workload[d.current_assignee]++;
+        }
+    });
+
+    // Find min
+    let bestEmployeeId = employeeIds[0];
+    let minTasks = workload[bestEmployeeId];
+
+    for (const id of employeeIds) {
+        if (workload[id] < minTasks) {
+            minTasks = workload[id];
+            bestEmployeeId = id;
+        }
+    }
+
+    // C. Apelăm funcția standard de approve cu ID-ul găsit
+    await this.approve(docId, currentUserId, bestEmployeeId);
+    
+    return bestEmployeeId;
   },
 
-  /**
-   * 4. RESPINGE DOSARUL
-   * -------------------
-   * Trimite dosarul în starea 'rejected' și cere un motiv obligatoriu.
-   */
-  async reject(docId, reason) {
-    if (!reason) throw new Error("Motivul respingerii este obligatoriu.");
-    
-    const { error } = await supabase.rpc('process_document', {
-      p_doc_id: docId,
-      p_action: 'reject',
-      p_reason: reason
-    });
+  // ==============================================================
+  // B. LISTE DE DOSARE (CITIRE)
+  // ==============================================================
+
+  async getInitialQueue() {
+    const { data, error } = await supabase
+      .from('documents')
+      .select('*') 
+      .eq('workflow_stage', 'submitted') 
+      .is('current_assignee', null)      
+      .order('created_at', { ascending: true }); 
+
     if (error) throw error;
+    return data;
   },
 
-  /**
-   * 5. SEMNEAZĂ DIGITAL
-   * -------------------
-   * @param {string} signatureText - Textul (ex: "Semnat digital de X")
-   * @param {string|null} fileId - (Opțional)
-   * - Dacă e specificat: Semnează doar acel fișier (pune bifa verde pe Aviz).
-   * - Dacă e NULL: Semnează tot dosarul (Validare generală).
-   */
-  async signDocument(docId, signatureText, fileId = null) {
-    const { error } = await supabase.rpc('sign_document', {
-      p_doc_id: docId,
-      p_signature_text: signatureText,
-      p_file_id: fileId
-    });
+  async getMyTasks() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data, error } = await supabase
+      .from('documents')
+      .select('*')
+      .eq('current_assignee', user.id)
+      .neq('workflow_stage', 'completed')
+      .neq('workflow_stage', 'rejected')
+      .order('updated_at', { ascending: true });
+
     if (error) throw error;
+    return data;
   },
 
-  /**
-   * 6. STATISTICI COLEGI (PENTRU DROPDOWN)
-   * --------------------------------------
-   * Returnează lista colegilor dintr-un departament și câte dosare au în lucru.
-   * Util pentru a popula dropdown-ul de asignare manuală.
-   * * Returnează: [{ id, full_name, active_tasks }, ...]
-   */
-  async getColleaguesStats(deptName) {
-    const { data, error } = await supabase.rpc('get_department_workload', {
-      p_dept: deptName
-    });
+  async getMyProcessedHistory() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    // Get IDs from history
+    const { data: history, error: histError } = await supabase
+        .from('workflow_history')
+        .select('document_id, created_at')
+        .eq('action_by', user.id)
+        .order('created_at', { ascending: false });
+
+    if (histError) throw histError;
+
+    if (!history.length) return [];
+
+    const docIds = [...new Set(history.map(h => h.document_id))];
+
+    const { data: docs, error: docError } = await supabase
+        .from('documents')
+        .select('*')
+        .in('id', docIds);
+
+    if (docError) throw docError;
+    return docs;
+  },
+
+  async getColleaguesByDepartment(deptName) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .eq('role', 'angajat')
+      .eq('department', deptName);
+
     if (error) throw error;
     return data;
   }
