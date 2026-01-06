@@ -17,6 +17,7 @@ export const WORKFLOW_ACTIONS = {
     comment: { label: "Comentariu" },
     signature: { label: "Semnătură" },
     file_upload: { label: "Încărcare Fișier" },
+    file_delete: { label: "Ștergere Fișier" },
 };
 
 export const getWorkflowActionLabel = (action) => {

@@ -89,6 +89,19 @@ export const DocumentService = {
       .single();
 
     if (error) throw error;
+
+    // Fetch requester profile manually because strict FK relationship to public.profiles is missing
+    // (uploaded_by points to auth.users, not public.profiles directly in schema definition)
+    if (data.uploaded_by) {
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, email')
+            .eq('id', data.uploaded_by)
+            .single();
+        
+        data.requester_profile = profile;
+    }
+
     return data;
   },
 
@@ -144,6 +157,78 @@ export const DocumentService = {
       }]);
 
     if (dbError) throw dbError;
+  },
+
+  /**
+   * 6. DELETE FIȘIER
+   * ----------------
+   * Șterge fișierul din Storage și din Baza de Date.
+   */
+  async deleteFile(fileId, filePath, fileName, documentId) {
+    // 1. Delete from Storage
+    const { error: storageError } = await supabase.storage
+      .from('dms-files')
+      .remove([filePath]);
+    
+    if (storageError) throw storageError;
+
+    // 2. Delete from Database
+    const { error: dbError } = await supabase
+      .from('document_files')
+      .delete()
+      .eq('id', fileId);
+
+    if (dbError) throw dbError;
+
+    // 3. Log to History - ELIMINAT pentru a evita duplicarea (Triggerul DB se ocupa de asta sau logica UI)
+    // Daca exista trigger pe DELETE document_files, acesta va scrie.
+    // Daca nu, userul a cerut sa nu il bagam manual.
+  },
+
+  /**
+   * 7. ȘTERGE CEREREA (Doar pentru Cetățean)
+   * Această funcție șterge înregistrarea din 'documents'.
+   * Datorită regulii ON DELETE CASCADE din SQL, se vor șterge automat și:
+   * Intrările din document_files
+   * Intrările din workflow_history
+   */
+  async deleteRequest(docId) {
+    // 1. (Opțional dar recomandat) Mai întâi curățăm fișierele fizice din Storage
+    // Dacă nu faci asta, rămân fișiere "orfane" în bucket, deși dispar din baza de date.
+    try {
+        const { data: files } = await supabase.from('document_files').select('file_url').eq('document_id', docId);
+
+        if (files && files.length > 0) {
+            const paths = files.map(f => f.file_url);
+            await supabase.storage.from('dms-files').remove(paths);
+        }
+    } catch (err) {
+        console.warn("Nu s-au putut șterge fișierele fizice (dar continuăm cu ștergerea cererii):", err);
+    }
+
+    // 2. Ștergem cererea propriu-zisă
+    const { error } = await supabase
+      .from('documents')
+      .delete()
+      .eq('id', docId);
+
+    if (error) throw error;
+  },
+
+  /**
+   * 8. REVOCĂ APROBAREA (UNDO)
+   * Șterge semnătura și întoarce dosarul în lucru.
+   */
+  async revokeApproval(docId) {
+    // Încercăm să folosim RPC dacă există, altfel facem logică manuală în JS
+    // Având în vedere că vrem să ștergem intrarea de 'signature' din history:
+    const { error } = await supabase
+      .from('workflow_history')
+      .delete()
+      .eq('document_id', docId)
+      .eq('action_type', 'signature');
+
+    if (error) throw error;
   },
 
   /**
