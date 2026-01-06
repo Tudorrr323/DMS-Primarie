@@ -250,9 +250,40 @@ export const EmployeeService = {
 
   /**
    * ȘTERGE SEMNĂTURA PROPRIE (Unsign)
-   * Elimină semnătura din tabelă și din istoric.
+   * Elimină semnătura din tabelă, din istoric și șterge certificatul generat.
    */
   async removeSignature(docId) {
+    // 1. Căutăm și ștergem fișierul fizic (Certificatul)
+    try {
+        const { data: files } = await supabase
+            .from('document_files')
+            .select('*')
+            .eq('document_id', docId)
+            .ilike('file_name', '%Certificat%');
+
+        if (files && files.length > 0) {
+            const file = files[0];
+            
+            // A. Ștergem din Storage
+            const { error: storageError } = await supabase.storage
+                .from('dms-files')
+                .remove([file.file_url]);
+            
+            if (storageError) {
+                console.error("Eroare la ștergerea fișierului din Storage:", storageError);
+            } else {
+                // B. Ștergem din Baza de Date doar dacă s-a șters din Storage
+                await supabase
+                    .from('document_files')
+                    .delete()
+                    .eq('id', file.id);
+            }
+        }
+    } catch (err) {
+        console.warn("Nu s-a putut șterge fișierul certificat (posibil inexistent):", err);
+    }
+
+    // 2. Apelăm procedura stocată pentru a șterge semnătura și a da revert la status
     const { error } = await supabase.rpc('remove_my_signature', {
       doc_id: docId
     });

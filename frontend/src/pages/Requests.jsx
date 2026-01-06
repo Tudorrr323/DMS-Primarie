@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Link } from "react-router-dom";
 import { PlusCircle, Loader2, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import RequestCard from '@/components/RequestCard';
-import { DatePicker } from '@/components/ui/date-picker';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -59,7 +59,7 @@ export default function Requests() {
     try {
       let query = supabase
         .from('documents')
-        .select('*', { count: 'exact' });
+        .select('*, workflow_history(action_type, from_stage)', { count: 'exact' });
 
       if (filters.search) {
         query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
@@ -75,11 +75,14 @@ export default function Requests() {
         query = query.eq('workflow_stage', filters.status);
       }
 
-      if (filters.date) {
-        const dateStr = filters.date.toISOString().split('T')[0];
-        query = query
-          .gte('created_at', `${dateStr}T00:00:00`)
-          .lte('created_at', `${dateStr}T23:59:59`);
+      if (filters.date?.from) {
+        const fromDateStr = filters.date.from.toISOString().split('T')[0];
+        query = query.gte('created_at', `${fromDateStr}T00:00:00`);
+      }
+      
+      if (filters.date?.to) {
+        const toDateStr = filters.date.to.toISOString().split('T')[0];
+        query = query.lte('created_at', `${toDateStr}T23:59:59`);
       }
 
       const [sortColumn, sortDirection] = filters.sort.split(',');
@@ -173,7 +176,7 @@ export default function Requests() {
                   {STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
               </SelectContent>
           </Select>
-          <DatePicker date={filters.date} setDate={handleDateChange} placeholder="Filtrează după dată" />
+          <DateRangePicker date={filters.date} setDate={handleDateChange} placeholder="Filtrează după perioadă" />
         </div>
         <div className="flex items-center justify-end gap-4 mt-4">
             <Button onClick={handleResetFilters} variant="outline"><X className="mr-2 h-4 w-4"/>Resetează</Button>

@@ -19,10 +19,10 @@ export const DocumentService = {
    * știe cine e logat și returnează automat doar documentele permise.
    */
   async getAll(filters = {}) {
-    // Start Query: Selectăm tot + numele celui care a încărcat
+    // Start Query: Selectăm tot + numele celui care a încărcat + istoric pentru status
     let query = supabase
       .from('documents')
-      .select('*')
+      .select('*, workflow_history(action_type, from_stage)')
       .order('created_at', { ascending: false }); // Cele mai noi primele (Index activat)
 
     // A. SEARCH BAR (Căutare "Fuzzy")
@@ -41,12 +41,14 @@ export const DocumentService = {
       query = query.eq('workflow_stage', filters.workflow_stage);
     }
 
-    // D. FILTRU DATĂ (Interval 24h)
-    // Caută orice a fost creat între 00:00 și 23:59 în ziua respectivă
+    // D. FILTRU DATĂ (Interval)
     if (filters.date) {
-      query = query
-        .gte('created_at', `${filters.date}T00:00:00`)
-        .lte('created_at', `${filters.date}T23:59:59`);
+      if (filters.date.from) {
+         query = query.gte('created_at', `${filters.date.from.toISOString().split('T')[0]}T00:00:00`);
+      }
+      if (filters.date.to) {
+         query = query.lte('created_at', `${filters.date.to.toISOString().split('T')[0]}T23:59:59`);
+      }
     }
 
     // E. FILTRU UPLOADER

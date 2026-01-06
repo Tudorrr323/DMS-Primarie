@@ -58,7 +58,7 @@ export default function EmployeeDashboard({
         if (docIds.length > 0) {
             const { data: docs, error: docError } = await supabase
                 .from('documents')
-                .select('*')
+                .select('*, workflow_history(action_type, from_stage)')
                 .in('id', docIds)
                 .order('updated_at', { ascending: false });
             if (docError) throw docError;
@@ -167,7 +167,14 @@ export default function EmployeeDashboard({
                              <div className="flex items-center gap-4 text-sm text-slate-500 mb-4">
                                 <span>Categorie: <span className="font-medium text-slate-700 capitalize">{req.category.replace('_', ' ')}</span></span>
                              </div>
-                             <RequestStatusStepper currentStatus={req.workflow_stage} />
+                             <RequestStatusStepper 
+                                currentStatus={req.workflow_stage} 
+                                rejectedAtStage={
+                                    req.workflow_stage === 'rejected' && req.workflow_history 
+                                    ? req.workflow_history.find(h => h.action_type === 'rejection')?.from_stage 
+                                    : null
+                                }
+                             />
                         </CardContent>
                     </Card>
                 ))}

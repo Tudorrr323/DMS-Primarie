@@ -16,7 +16,14 @@ export default function RequestCard({ request }) {
           <span className="text-xs text-slate-400">
             {new Date(request.created_at).toLocaleDateString()}
           </span>
-          <RequestStatusStepper currentStatus={request.workflow_stage} />
+          <RequestStatusStepper 
+            currentStatus={request.workflow_stage} 
+            rejectedAtStage={
+                request.workflow_stage === 'rejected' && request.workflow_history 
+                ? request.workflow_history.find(h => h.action_type === 'rejection')?.from_stage 
+                : null
+            }
+          />
         </CardFooter>
       </Card>
     </Link>
