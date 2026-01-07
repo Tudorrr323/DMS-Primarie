@@ -1,12 +1,13 @@
 import jsPDF from 'jspdf';
 import { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../contexts/AuthContext';
 import { DocumentService } from '../lib/documentService';
 import { EmployeeService } from '../lib/employeeService';
 import { getWorkflowStageInfo } from '../lib/workflow-utils';
 import PDFPreview from '../components/PDFPreview';
+import PDFSigner from '../components/PDFSigner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,12 +18,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 export default function RequestTimeline() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuthContext();
   const [request, setRequest] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [previewFileId, setPreviewFileId] = useState(null);
+  
+  // Signing State
+  const [signingFile, setSigningFile] = useState(null); // The file object info
+  const [signingFileUrl, setSigningFileUrl] = useState(null); // The actual Blob URL
   
   // Actions state
   const [rejectReason, setRejectReason] = useState('');
@@ -34,6 +40,48 @@ export default function RequestTimeline() {
   const [nextDept, setNextDept] = useState(null); // Dynamic next department
   
   const fileInputRef = useRef(null);
+
+  const handleOpenSigner = async (file) => {
+      try {
+          toast.info("Se descarcă documentul pentru semnare...");
+          
+          const { data, error } = await supabase.storage
+            .from('dms-files')
+            .download(file.file_url);
+            
+          if (error) throw error;
+
+          const url = URL.createObjectURL(data);
+          setSigningFileUrl(url);
+          setSigningFile(file);
+      } catch (err) {
+          toast.error("Nu s-a putut deschide fișierul: " + err.message);
+      }
+  };
+
+  const handleSaveSignature = async (signatures) => {
+      try {
+          toast.info("Se aplică semnăturile...");
+          await EmployeeService.signDocumentWithCoordinates(request.id, signingFile.id, signatures);
+          toast.success("Document semnat cu succes!");
+          
+          // Cleanup
+          if (signingFileUrl) URL.revokeObjectURL(signingFileUrl);
+          setSigningFile(null);
+          setSigningFileUrl(null);
+          
+          window.location.reload();
+      } catch (err) {
+          console.error(err);
+          toast.error("Eroare la semnare: " + err.message);
+      }
+  };
+
+  const handleCancelSigner = () => {
+      if (signingFileUrl) URL.revokeObjectURL(signingFileUrl);
+      setSigningFile(null);
+      setSigningFileUrl(null);
+  };
 
   const handleGenerateCertificate = async () => {
     try {
@@ -336,8 +384,14 @@ export default function RequestTimeline() {
 
   // Verificăm dacă documentul a fost deja semnat (pentru etapa tehnică)
   const isSigned = request?.workflow_history?.some(entry => entry.action_type === 'signature');
+  
+  // Verificăm dacă există deja un Certificat generat
+  const hasCertificate = request?.document_files?.some(f => f.file_name.includes('Certificat_Aprobare'));
+
   // Butoanele de trimitere apar imediat (dacă nu suntem la tehnic) SAU după semnare (dacă suntem la tehnic)
-  const showSendButtons = currentStage !== 'review_step2' || isSigned;
+  // Pentru etapa tehnică, fluxul este: Semnează/Verifică documente -> Generează Certificat -> Trimite
+  // Deci permitem trimiterea dacă avem certificat.
+  const showSendButtons = currentStage !== 'review_step2' || hasCertificate;
 
   const getBackLink = () => {
     if (!isEmployee) return '/requests';
@@ -353,13 +407,25 @@ export default function RequestTimeline() {
   if (error) return <div className="p-10 text-red-500">Eroare: {error}</div>;
   if (!request) return <div className="p-10">Cererea nu există.</div>;
 
+  if (signingFile && signingFileUrl) {
+      return (
+          <div className="p-4 h-screen bg-slate-50">
+              <PDFSigner 
+                fileUrl={signingFileUrl} 
+                onSave={handleSaveSignature}
+                onCancel={handleCancelSigner}
+              />
+          </div>
+      );
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex justify-between items-center">
-        <Link to={getBackLink()} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900">
+        <Button variant="ghost" onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 px-0 hover:bg-transparent">
             <ArrowLeft className="h-4 w-4" />
             Înapoi
-        </Link>
+        </Button>
         {canDeleteRequest && (
             <Button variant="destructive" size="sm" onClick={handleDeleteRequest}>
                 <Trash2 className="mr-2 h-4 w-4" /> Șterge Cererea
@@ -397,6 +463,17 @@ export default function RequestTimeline() {
                             const isPdf = file.file_name.toLowerCase().endsWith('.pdf');
                             const isPreviewing = previewFileId === file.id;
                             const canDelete = isEmployee || (user && file.uploaded_by === user.id);
+                            
+                            // Verificăm dacă fișierul are o semnătură de la UTILIZATORUL CURENT
+                            const signedByMe = request.signatures?.some(sig => sig.file_id === file.id && sig.signed_by === user?.id);
+                            // Verificăm dacă are orice semnătură (pentru badge)
+                            const isSigned = request.signatures?.some(sig => sig.file_id === file.id);
+
+                            // Logică pentru butonul de semnare
+                            const isCertificate = file.file_name.includes('Certificat_Aprobare');
+                            const canSign = isEmployee && isAssignedToMe && isPdf && 
+                                            (currentStage === 'review_step2' || currentStage === 'review_step3') &&
+                                            !signedByMe && !isCertificate;
 
                             return (
                                 <div key={file.id} className="border rounded-md bg-white hover:bg-slate-50 transition-colors">
@@ -406,11 +483,25 @@ export default function RequestTimeline() {
                                                 <FileText className="h-5 w-5 text-blue-600" />
                                             </div>
                                             <div className="truncate">
-                                                <p className="text-sm font-medium truncate">{file.file_name}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-sm font-medium truncate">{file.file_name}</p>
+                                                    {isSigned && <Badge variant="secondary" className="text-[10px] h-5 px-1 bg-green-100 text-green-700">Semnat</Badge>}
+                                                </div>
                                                 <p className="text-xs text-slate-400">{new Date(file.created_at).toLocaleDateString()}</p>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-1">
+                                            {canSign && (
+                                                <Button 
+                                                    size="sm" 
+                                                    className="bg-indigo-600 hover:bg-indigo-700 h-8 text-xs gap-1"
+                                                    onClick={() => handleOpenSigner(file)}
+                                                    title="Aplică semnătura manual"
+                                                >
+                                                    <PenTool className="h-3 w-3" />
+                                                    Semnează
+                                                </Button>
+                                            )}
                                             {isPdf && (
                                                 <Button 
                                                     variant={isPreviewing ? "secondary" : "outline"} 
@@ -526,7 +617,7 @@ export default function RequestTimeline() {
                               )}
 
                               {/* Buton Semnare (Doar pentru Verificare Tehnică și doar dacă nu e semnat deja) */}
-                              {request.workflow_stage === 'review_step2' && !isSigned && (
+                              {request.workflow_stage === 'review_step2' && !hasCertificate && (
                                   <Button onClick={handleGenerateCertificate} className="bg-blue-700 hover:bg-blue-800" title="Generează și semnează certificatul înainte de trimitere">
                                       <PenTool className="mr-2 h-4 w-4" /> Generează Certificat
                                   </Button>

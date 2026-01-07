@@ -1,96 +1,530 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../contexts/AuthContext';
-import { Loader2 } from 'lucide-react';
-import RequestList from '@/components/RequestList';
+import { Loader2, UserCog, Clock, AlertTriangle, CheckCircle, BarChart3, Search, X, ChevronLeft, ChevronRight, Activity } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 import RequestStatusStepper from '@/components/RequestStatusStepper';
+import { WORKFLOW_STAGES } from '../lib/workflow-utils';
+import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+
+const ITEMS_PER_PAGE = 6;
+
+const CATEGORIES = [
+  { value: 'cerere_cetatean', label: 'Cerere Cetățean' },
+  { value: 'act_administrativ', label: 'Act Administrativ' },
+  { value: 'contract', label: 'Contract' },
+  { value: 'raport', label: 'Raport' },
+];
+
+const STATUSES = [
+    { value: 'submitted', label: 'Depusă' },
+    { value: 'review_step1', label: 'Verificare inițială' },
+    { value: 'review_step2', label: 'Verificare tehnică' },
+    { value: 'review_step3', label: 'Verificare finală' },
+    { value: 'completed', label: 'Finalizată' },
+    { value: 'rejected', label: 'Refuzată' },
+];
 
 export default function AdminDashboard() {
   const { user } = useAuthContext();
-  const [allRequests, setAllRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [stats, setStats] = useState({ total: 0, pending: 0, completed: 0, rejected: 0 });
+  const [bottlenecks, setBottlenecks] = useState([]);
+  const [requests, setRequests] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [activityLog, setActivityLog] = useState([]);
+  
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [filters, setFilters] = useState({
+    search: '',
+    category: '',
+    status: '',
+    date: null,
+    sort: 'created_at,desc',
+  });
+
+  const [reassignId, setReassignId] = useState(null);
+  const [targetEmployee, setTargetEmployee] = useState('');
 
   useEffect(() => {
-    const fetchRequests = async () => {
-      if (!user) return;
-      try {
-        setLoading(true);
+    fetchData();
+  }, [user, filters, currentPage]);
+
+  const fetchData = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+        let query = supabase
+            .from('documents')
+            .select(`
+                *,
+                assignee:current_assignee(id, full_name, email, department),
+                workflow_history(created_at, from_stage, to_stage, action_by_profile:action_by(full_name, email))
+            `, { count: 'exact' });
+
+        if (filters.search) {
+            query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+        }
+        if (filters.category && filters.category !== 'all') {
+            query = query.eq('category', filters.category);
+        }
+        if (filters.status && filters.status !== 'all') {
+            query = query.eq('workflow_stage', filters.status);
+        }
+        if (filters.date?.from) {
+            query = query.gte('created_at', `${filters.date.from.toISOString().split('T')[0]}T00:00:00`);
+        }
+        if (filters.date?.to) {
+            query = query.lte('created_at', `${filters.date.to.toISOString().split('T')[0]}T23:59:59`);
+        }
+
+        const [sortColumn, sortDirection] = filters.sort.split(',');
+        if (sortColumn) {
+            query = query.order(sortColumn, { ascending: sortDirection === 'asc' });
+        }
+
+        const from = (currentPage - 1) * ITEMS_PER_PAGE;
+        const to = from + ITEMS_PER_PAGE - 1;
+        query = query.range(from, to);
+
+        const { data: docs, error: docError, count } = await query;
+        if (docError) throw docError;
         
-        const { data, error } = await supabase
-          .from('documents')
-          .select('*')
-          .order('created_at', { ascending: false });
+        const processedDocs = docs.map(req => {
+            if (req.workflow_stage === 'rejected' && req.workflow_history) {
+                const rejectionEvent = [...req.workflow_history]
+                    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                    .find(h => h.to_stage === 'rejected' || h.action_type === 'rejection');
+                
+                return {
+                    ...req,
+                    rejectedAtStage: rejectionEvent?.from_stage || 'submitted',
+                    rejectedByName: rejectionEvent?.action_by_profile?.full_name || rejectionEvent?.action_by_profile?.email
+                };
+            }
+            return req;
+        });
+        
+        setRequests(processedDocs);
+        setTotalPages(Math.ceil(count / ITEMS_PER_PAGE));
 
-        if (error) throw error;
-        setAllRequests(data);
+        if (employees.length === 0) {
+            const { data: emps } = await supabase.from('profiles').select('*').eq('role', 'angajat');
+            if (emps) setEmployees(emps);
+        }
 
-        // Calculate simple stats
-        const total = data.length;
-        const pending = data.filter(r => ['submitted', 'review_step1', 'review_step2', 'review_step3'].includes(r.workflow_stage)).length;
-        const completed = data.filter(r => r.workflow_stage === 'completed').length;
-        const rejected = data.filter(r => r.workflow_stage === 'rejected').length;
+        if (currentPage === 1 && !filters.search) {
+             fetchGlobalStats();
+             fetchActivityLog();
+        }
 
-        setStats({ total, pending, completed, rejected });
-
-      } catch (err) {
-        setError(err.message);
-      } finally {
+    } catch (err) {
+        console.error(err);
+        toast.error("Eroare la încărcarea datelor: " + err.message);
+    } finally {
         setLoading(false);
+    }
+  };
+
+  const fetchGlobalStats = async () => {
+      const { data: allDocs } = await supabase.from('documents').select('workflow_stage, created_at, workflow_history(created_at, from_stage, to_stage)');
+      if (!allDocs) return;
+
+      const total = allDocs.length;
+      const pending = allDocs.filter(r => !['completed', 'rejected'].includes(r.workflow_stage)).length;
+      const completed = allDocs.filter(r => r.workflow_stage === 'completed').length;
+      const rejected = allDocs.filter(r => r.workflow_stage === 'rejected').length;
+      setStats({ total, pending, completed, rejected });
+      
+      computeBottlenecks(allDocs);
+  };
+
+  const fetchActivityLog = async () => {
+      const { data: history } = await supabase
+        .from('workflow_history')
+        .select(`
+            *,
+            action_by_profile:action_by(full_name, email),
+            document:document_id(title)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(10);
+        
+      if (history) setActivityLog(history);
+  };
+
+  const computeBottlenecks = (docs) => {
+      const stageDurations = {}; 
+      
+      docs.forEach(doc => {
+          if (!doc.workflow_history || doc.workflow_history.length < 2) return;
+          const history = [...doc.workflow_history].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+          
+          for (let i = 0; i < history.length - 1; i++) {
+              const current = history[i];
+              const next = history[i+1];
+              
+              if (current.to_stage && next.from_stage === current.to_stage) {
+                  const durationMs = new Date(next.created_at) - new Date(current.created_at);
+                  const durationHours = durationMs / (1000 * 60 * 60);
+                  
+                  if (!stageDurations[current.to_stage]) stageDurations[current.to_stage] = [];
+                  stageDurations[current.to_stage].push(durationHours);
+              }
+          }
+      });
+
+      const avgDurations = Object.entries(stageDurations).map(([stage, durations]) => {
+          const avg = durations.reduce((a, b) => a + b, 0) / durations.length;
+          return { 
+              name: WORKFLOW_STAGES[stage]?.label || stage, 
+              avgHours: parseFloat(avg.toFixed(1)) 
+          };
+      }).sort((a, b) => b.avgHours - a.avgHours);
+
+      setBottlenecks(avgDurations);
+  };
+
+  const handleReassign = async () => {
+      if (!reassignId || !targetEmployee) return;
+      try {
+          const employee = employees.find(e => e.id === targetEmployee);
+          let newStage = null;
+
+          if (employee) {
+              if (employee.department === 'verificare_initiala') newStage = 'review_step1';
+              else if (employee.department === 'verificare_tehnica') newStage = 'review_step2';
+              else if (employee.department === 'verificare_finala') newStage = 'review_step3';
+          }
+
+          const updates = { current_assignee: targetEmployee };
+          if (newStage) updates.workflow_stage = newStage;
+
+          const { error } = await supabase
+              .from('documents')
+              .update(updates)
+              .eq('id', reassignId);
+          
+          if (error) throw error;
+
+          await supabase.from('workflow_history').insert({
+              document_id: reassignId,
+              action_by: user.id,
+              action_type: 'comment',
+              to_stage: newStage,
+              comment: `ADMIN: Reasignat către ${employee?.full_name || 'alt funcționar'} (Departament: ${employee?.department}).`
+          });
+
+          toast.success("Cerere reasignată și mutată la stadiul corespunzător!");
+          setReassignId(null);
+          setTargetEmployee('');
+          fetchData(); 
+      } catch (err) {
+          toast.error("Eroare la reasignare: " + err.message);
       }
-    };
+  };
+  
+  const handleFilterChange = (name, value) => {
+    setFilters(prev => ({ ...prev, [name]: value }));
+    setCurrentPage(1);
+  };
 
-    fetchRequests();
-  }, [user]);
+  const handleDateChange = (date) => {
+    setFilters(prev => ({...prev, date: date}));
+    setCurrentPage(1);
+  };
 
-  if (loading) {
-    return (
-        <div className="p-6 text-center flex items-center justify-center h-64">
-            <Loader2 className="mr-2 h-8 w-8 animate-spin" />
-            <p>Se încarcă panoul de administrare...</p>
-        </div>
-    );
-  }
+  const handleResetFilters = () => {
+    setFilters({
+      search: '',
+      category: '',
+      status: '',
+      date: null,
+      sort: 'created_at,desc'
+    });
+    setCurrentPage(1);
+  };
 
-  if (error) {
-    return <p className="p-6 text-center text-red-500">{error}</p>;
+  if (loading && requests.length === 0) {
+    return <div className="p-10 flex justify-center"><Loader2 className="animate-spin h-8 w-8 text-slate-400" /></div>;
   }
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight text-slate-800">Panou Administrator</h2>
-        <p className="text-slate-500 mt-1">Privire de ansamblu asupra întregului sistem.</p>
+    <div className="space-y-8 max-w-7xl mx-auto pb-10">
+      <div className="flex justify-between items-center">
+        <div>
+            <h2 className="text-3xl font-bold tracking-tight text-slate-800">Panou Administrator</h2>
+            <p className="text-slate-500 mt-1">Monitorizare performanță și gestionare flux.</p>
+        </div>
+        <Button onClick={fetchData} variant="outline"><Clock className="mr-2 h-4 w-4" /> Actualizează</Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white p-4 rounded-lg border shadow-sm">
-              <p className="text-sm font-medium text-slate-500">Total Cereri</p>
-              <p className="text-2xl font-bold text-slate-800">{stats.total}</p>
-          </div>
-          <div className="bg-white p-4 rounded-lg border shadow-sm">
-              <p className="text-sm font-medium text-slate-500">În Desfășurare</p>
-              <p className="text-2xl font-bold text-blue-600">{stats.pending}</p>
-          </div>
-          <div className="bg-white p-4 rounded-lg border shadow-sm">
-              <p className="text-sm font-medium text-slate-500">Finalizate</p>
-              <p className="text-2xl font-bold text-green-600">{stats.completed}</p>
-          </div>
-          <div className="bg-white p-4 rounded-lg border shadow-sm">
-              <p className="text-sm font-medium text-slate-500">Refuzate</p>
-              <p className="text-2xl font-bold text-red-600">{stats.rejected}</p>
-          </div>
+          <Card>
+              <CardContent className="p-6 flex items-center justify-between">
+                  <div>
+                      <p className="text-sm font-medium text-slate-500">Total Cereri</p>
+                      <p className="text-3xl font-bold text-slate-800">{stats.total}</p>
+                  </div>
+                  <BarChart3 className="h-8 w-8 text-slate-200" />
+              </CardContent>
+          </Card>
+          <Card>
+              <CardContent className="p-6 flex items-center justify-between">
+                  <div>
+                      <p className="text-sm font-medium text-slate-500">În Lucru</p>
+                      <p className="text-3xl font-bold text-blue-600">{stats.pending}</p>
+                  </div>
+                  <Clock className="h-8 w-8 text-blue-100" />
+              </CardContent>
+          </Card>
+          <Card>
+              <CardContent className="p-6 flex items-center justify-between">
+                  <div>
+                      <p className="text-sm font-medium text-slate-500">Finalizate</p>
+                      <p className="text-3xl font-bold text-green-600">{stats.completed}</p>
+                  </div>
+                  <CheckCircle className="h-8 w-8 text-green-100" />
+              </CardContent>
+          </Card>
+          <Card>
+              <CardContent className="p-6 flex items-center justify-between">
+                  <div>
+                      <p className="text-sm font-medium text-slate-500">Refuzate</p>
+                      <p className="text-3xl font-bold text-red-600">{stats.rejected}</p>
+                  </div>
+                  <AlertTriangle className="h-8 w-8 text-red-100" />
+              </CardContent>
+          </Card>
       </div>
-      
-      <div className="space-y-6">
-        <RequestList 
-          title="Toate Cererile Recente"
-          requests={allRequests.slice(0, 5)} // Only show top 5 here, or pass logic to RequestList
-          viewAllLink={{ to: '/requests', state: {} }}
-          renderStatusStepper={(request) => <RequestStatusStepper currentStatus={request.workflow_stage} />}
-        />
+
+      <div className="flex flex-col gap-8">
+          
+          <Card>
+              <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-orange-500" />
+                      Timp Mediu (Ore)
+                  </CardTitle>
+                  <CardDescription>Analiză performanță pe stadii</CardDescription>
+              </CardHeader>
+              <CardContent className="h-[300px]">
+                  {bottlenecks.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={bottlenecks} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                              <XAxis 
+                                dataKey="name" 
+                                tick={{fontSize: 12}} 
+                                axisLine={false}
+                                tickLine={false}
+                              />
+                              <YAxis tick={{fontSize: 12}} axisLine={false} tickLine={false} />
+                              <Tooltip cursor={{fill: '#f1f5f9'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                              <Bar dataKey="avgHours" radius={[4, 4, 0, 0]} barSize={60}>
+                                {bottlenecks.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={index === 0 ? '#ef4444' : '#3b82f6'} />
+                                ))}
+                              </Bar>
+                          </BarChart>
+                      </ResponsiveContainer>
+                  ) : (
+                      <div className="flex items-center justify-center h-full text-sm text-slate-400">
+                          Nu sunt suficiente date.
+                      </div>
+                  )}
+              </CardContent>
+          </Card>
+
+          <Card>
+              <CardHeader>
+                  <CardTitle>Registru General Cereri</CardTitle>
+                  <CardDescription>Vizualizează, filtrează și gestionează toate cererile.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                      
+                      <div className="p-4 border rounded-lg bg-slate-50">
+                        <div className="flex flex-col gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                                <div className="md:col-span-4 relative">
+                                    <Input name="search" placeholder="Caută titlu/descriere..." value={filters.search} onChange={(e) => handleFilterChange('search', e.target.value)} className="pr-10 bg-white"/>
+                                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                                </div>
+                                <div className="md:col-span-3">
+                                    <Select value={filters.category || 'all'} onValueChange={(value) => handleFilterChange('category', value)}>
+                                        <SelectTrigger className="bg-white"><SelectValue placeholder="Categorie" /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Toate Categoriile</SelectItem>
+                                            {CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="md:col-span-3">
+                                    <Select value={filters.status || 'all'} onValueChange={(value) => handleFilterChange('status', value)}>
+                                        <SelectTrigger className="bg-white"><SelectValue placeholder="Status" /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Toate Statusurile</SelectItem>
+                                            {STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="md:col-span-2">
+                                     <Button onClick={handleResetFilters} variant="outline" className="w-full bg-white text-slate-600 hover:bg-slate-100 border-slate-300">
+                                        <X className="mr-2 h-4 w-4"/>Resetează
+                                     </Button>
+                                </div>
+                            </div>
+                            
+                            <div className="flex justify-start">
+                                <div className="w-full md:w-auto min-w-[300px]">
+                                    <DateRangePicker date={filters.date} setDate={handleDateChange} placeholder="Filtrează după perioadă" className="bg-white" />
+                                </div>
+                            </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                          {requests.length > 0 ? (
+                              requests.map(req => (
+                                  <div key={req.id} className="p-4 border rounded-lg bg-white hover:bg-slate-50 transition-colors">
+                                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                          <div>
+                                              <Link to={`/requests/${req.id}`} className="font-semibold text-slate-900 hover:text-blue-600 hover:underline">
+                                                  {req.title}
+                                              </Link>
+                                              <div className="flex items-center gap-2 mt-1">
+                                                  <span className="text-xs text-slate-500">
+                                                      {new Date(req.created_at).toLocaleDateString()}
+                                                  </span>
+                                                  <Badge variant="outline" className="text-[10px] font-normal">
+                                                      {req.category.replace('_', ' ')}
+                                                  </Badge>
+                                              </div>
+                                          </div>
+                                          
+                                          <div className="flex items-center gap-4">
+                                              <div className="text-right">
+                                                  <p className="text-xs font-medium text-slate-500">Asignat la / Procesat de:</p>
+                                                  {req.assignee ? (
+                                                      <p className="text-sm font-bold text-slate-800">{req.assignee.full_name || req.assignee.email}</p>
+                                                  ) : (
+                                                      <p className="text-sm font-bold text-orange-600 italic">
+                                                          {req.workflow_stage === 'completed' ? 'Finalizat' : 
+                                                           req.workflow_stage === 'rejected' ? (req.rejectedByName || 'Respins') : 'Neasignat'}
+                                                      </p>
+                                                  )}
+                                              </div>
+                                              
+                                              {!['completed', 'rejected'].includes(req.workflow_stage) && (
+                                                  reassignId === req.id ? (
+                                                      <div className="flex items-center gap-2 animate-in slide-in-from-right-5">
+                                                          <Select value={targetEmployee} onValueChange={setTargetEmployee}>
+                                                              <SelectTrigger className="w-[180px] h-9">
+                                                                  <SelectValue placeholder="Alege..." />
+                                                              </SelectTrigger>
+                                                              <SelectContent>
+                                                                  {employees.map(e => (
+                                                                      <SelectItem key={e.id} value={e.id}>{e.full_name || e.email}</SelectItem>
+                                                                  ))}
+                                                              </SelectContent>
+                                                          </Select>
+                                                          <Button size="sm" onClick={handleReassign} disabled={!targetEmployee}>OK</Button>
+                                                          <Button size="sm" variant="ghost" onClick={() => setReassignId(null)}>X</Button>
+                                                      </div>
+                                                  ) : (
+                                                      <Button 
+                                                        variant="outline" 
+                                                        size="sm" 
+                                                        onClick={() => setReassignId(req.id)}
+                                                        className="shrink-0"
+                                                      >
+                                                          <UserCog className="h-4 w-4 mr-2" />
+                                                          Reasignează
+                                                      </Button>
+                                                  )
+                                              )}
+                                          </div>
+                                      </div>
+                                      <div className="mt-4 border-t pt-3">
+                                          <RequestStatusStepper 
+                                            currentStatus={req.workflow_stage} 
+                                            rejectedAtStage={req.rejectedAtStage} 
+                                          />
+                                      </div>
+                                  </div>
+                              ))
+                          ) : (
+                              <p className="text-center text-slate-500 py-10">Nu au fost găsite cereri conform filtrelor.</p>
+                          )}
+                      </div>
+
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-center gap-4 pt-4 border-t">
+                            <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1}>
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <span className="text-sm text-slate-600">Pagina {currentPage} din {totalPages}</span>
+                            <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
+                      )}
+                  </CardContent>
+              </Card>
       </div>
+
+      <Card>
+          <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-blue-600" />
+                  Activitate Recentă în Sistem
+              </CardTitle>
+              <CardDescription>Jurnalul global al ultimelor acțiuni efectuate.</CardDescription>
+          </CardHeader>
+          <CardContent>
+              {activityLog.length > 0 ? (
+                  <div className="space-y-4">
+                      {activityLog.map((log) => (
+                          <div key={log.id} className="flex flex-col sm:flex-row justify-between items-start border-b border-slate-100 pb-3 last:border-0 last:pb-0">
+                              <div className="flex gap-3">
+                                  <div className={`mt-1 h-2 w-2 rounded-full shrink-0 
+                                      ${log.action_type === 'rejection' ? 'bg-red-500' : 
+                                        log.action_type === 'signature' ? 'bg-green-500' : 'bg-slate-300'}`} 
+                                  />
+                                  <div>
+                                      <p className="text-sm text-slate-800">
+                                          <span className="font-semibold">{log.action_by_profile?.full_name || 'Utilizator'}</span> 
+                                          {' '}
+                                          {log.action_type === 'stage_change' ? 'a schimbat statusul' :
+                                           log.action_type === 'signature' ? 'a semnat' :
+                                           log.action_type === 'rejection' ? 'a respins' : 
+                                           log.action_type === 'comment' ? 'a comentat' : 'a acționat'}
+                                          {' '}
+                                          pe cererea <Link to={`/requests/${log.document_id}`} className="text-blue-600 hover:underline">{log.document?.title || 'Document'}</Link>
+                                      </p>
+                                      <p className="text-xs text-slate-500 mt-0.5">{log.comment}</p>
+                                  </div>
+                              </div>
+                              <span className="text-xs text-slate-400 whitespace-nowrap ml-8 sm:ml-0">
+                                  {new Date(log.created_at).toLocaleString('ro-RO')}
+                              </span>
+                          </div>
+                      ))}
+                  </div>
+              ) : (
+                  <p className="text-slate-400 text-sm">Nicio activitate recentă.</p>
+              )}
+          </CardContent>
+      </Card>
     </div>
   );
 }

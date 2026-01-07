@@ -249,46 +249,55 @@ export const EmployeeService = {
   },
 
   /**
-   * ȘTERGE SEMNĂTURA PROPRIE (Unsign)
-   * Elimină semnătura din tabelă, din istoric și șterge certificatul generat.
+   * ȘTERGE DOAR CERTIFICATUL DE APROBARE (Undo)
+   * Nu afectează alte fișiere semnate manual.
    */
   async removeSignature(docId) {
-    // 1. Căutăm și ștergem fișierul fizic (Certificatul)
-    try {
-        const { data: files } = await supabase
-            .from('document_files')
-            .select('*')
-            .eq('document_id', docId)
-            .ilike('file_name', '%Certificat%');
+    // 1. Căutăm fișierul de tip Certificat
+    const { data: files } = await supabase
+        .from('document_files')
+        .select('*')
+        .eq('document_id', docId)
+        .ilike('file_name', '%Certificat%');
 
-        if (files && files.length > 0) {
-            const file = files[0];
-            
-            // A. Ștergem din Storage
-            const { error: storageError } = await supabase.storage
-                .from('dms-files')
-                .remove([file.file_url]);
-            
-            if (storageError) {
-                console.error("Eroare la ștergerea fișierului din Storage:", storageError);
-            } else {
-                // B. Ștergem din Baza de Date doar dacă s-a șters din Storage
-                await supabase
-                    .from('document_files')
-                    .delete()
-                    .eq('id', file.id);
-            }
-        }
-    } catch (err) {
-        console.warn("Nu s-a putut șterge fișierul certificat (posibil inexistent):", err);
+    if (!files || files.length === 0) {
+        throw new Error("Nu am găsit niciun certificat de anulat.");
     }
 
-    // 2. Apelăm procedura stocată pentru a șterge semnătura și a da revert la status
-    const { error } = await supabase.rpc('remove_my_signature', {
-      doc_id: docId
-    });
+    const certFile = files[0];
 
-    if (error) throw error;
+    // 2. Ștergem fizic din Storage
+    await supabase.storage
+        .from('dms-files')
+        .remove([certFile.file_url]);
+
+    // 3. Ștergem din Baza de Date (Cascade va șterge semnătura legată strict de acest fișier)
+    // NU ștergem alte semnături de pe alte fișiere.
+    const { error: dbError } = await supabase
+        .from('document_files')
+        .delete()
+        .eq('id', certFile.id);
+
+    if (dbError) throw dbError;
+
+    // 4. Ștergem intrarea din istoric specifică generării certificatului
+    // Căutăm intrări recente de tip 'signature' care menționează 'Certificat' sau 'Aprobare'
+    await supabase
+        .from('workflow_history')
+        .delete()
+        .eq('document_id', docId)
+        .eq('action_type', 'signature')
+        .ilike('comment', '%finalizat dosarul%'); // Sau un text specific din handleGenerateCertificate
+        // Nota: handleGenerateCertificate pune doar addSignature care pune un text generic?
+        // Nu, addSignature pune "A aplicat semnătura digitală..."
+        // handleGenerateCertificate nu pune un comment specific in history decat prin addSignature.
+        
+        // Daca vrem sa fim precisi, stergem ultima semnatura 'globala'? 
+        // addSignature pune: comment: `A aplicat semnătura digitală (ID: ${uniqueCode})`
+        
+        // Mai bine lăsăm istoricul (audit) sau ștergem doar ultima intrare a utilizatorului.
+        // Pentru simplitate și siguranță, nu ștergem istoric generic, doar fișierul.
+        // Utilizatorul poate genera un nou certificat.
   },
 
   /**
@@ -473,5 +482,224 @@ export const EmployeeService = {
           completed_at: new Date()
       })
       .eq('id', docId);
+  },
+
+  /**
+   * 19. SEMNARE DOCUMENT CU POZIȚIONARE MANUALĂ
+   * Primește lista de semnături { page, xRatio, yRatio } și le aplică pe PDF.
+   */
+  async signDocumentWithCoordinates(docId, fileId, signatures) {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Fetch profile to get Full Name
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .single();
+    
+    const signerName = profile?.full_name || user.email;
+
+    // 1. Luăm informațiile fișierului
+    const { data: fileData, error: fileError } = await supabase
+        .from('document_files')
+        .select('*')
+        .eq('id', fileId)
+        .single();
+    
+    if (fileError) throw fileError;
+
+    // 2. Descărcăm PDF-ul
+    const { data: fileBlob, error: downloadError } = await supabase.storage
+        .from('dms-files')
+        .download(fileData.file_url);
+
+    if (downloadError) throw downloadError;
+
+    // 3. Încărcăm în PDF-Lib
+    const pdfBuffer = await fileBlob.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(pdfBuffer);
+    const pages = pdfDoc.getPages();
+
+    // Fonturi
+    const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const timesBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+    
+    const uniqueCode = 'SIG-M-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+    const dateStr = new Date().toLocaleString('ro-RO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    
+    const sigWidth = 180;
+    const sigHeight = 60;
+    const officialBlue = rgb(0, 0.196, 0.588);
+
+    // 4. Aplicăm semnăturile
+    for (const sig of signatures) {
+        // Indexul paginii (UI e 1-based, array e 0-based)
+        const pageIndex = sig.page - 1; 
+        if (pageIndex < 0 || pageIndex >= pages.length) continue;
+
+        const page = pages[pageIndex];
+        const { width, height } = page.getSize();
+        const rotation = page.getRotation().angle;
+
+        // Conversie Coordonate cu Rotație
+        let x, y;
+        
+        if (rotation === 0) {
+            x = width * sig.xRatio;
+            y = height - (height * sig.yRatio);
+        } else if (rotation === 90) {
+            // La 90 grade, coordonatele sunt rotite
+            x = width * sig.yRatio;
+            y = height * sig.xRatio;
+        } else if (rotation === 180) {
+            x = width * (1 - sig.xRatio);
+            y = height * sig.yRatio;
+        } else if (rotation === 270) {
+            x = width * (1 - sig.yRatio);
+            y = height * (1 - sig.xRatio);
+        } else {
+             // Fallback
+             x = width * sig.xRatio;
+             y = height - (height * sig.yRatio);
+        }
+
+        // Desenăm centrând pe punctul click-ului
+        const drawX = x - (sigWidth / 2);
+        const drawY = y - (sigHeight / 2);
+
+        // Chenar (Roșu pentru vizibilitate maximă temporar, sau Albastru închis oficial)
+        // Revenim la Albastru, dar cu background semi-transparent pentru contrast
+        page.drawRectangle({
+            x: drawX,
+            y: drawY,
+            width: sigWidth,
+            height: sigHeight,
+            borderColor: officialBlue,
+            borderWidth: 2,
+            color: rgb(1, 1, 1), // Fundal alb
+            opacity: 0.9, // Opacitate mare să acopere scrisul de dedesubt
+        });
+        
+        // Redesenăm chenarul doar contur peste fundal
+        page.drawRectangle({
+            x: drawX,
+            y: drawY,
+            width: sigWidth,
+            height: sigHeight,
+            borderColor: officialBlue,
+            borderWidth: 2,
+            opacity: 1,
+        });
+
+        // Text
+        page.drawText("DOCUMENT VERIFICAT", {
+            x: drawX + 10,
+            y: drawY + 35,
+            size: 10,
+            font: timesBold,
+            color: officialBlue,
+        });
+
+        page.drawText(`Semnat digital: ${signerName}`, {
+            x: drawX + 10,
+            y: drawY + 20,
+            size: 9,
+            font: helveticaFont,
+            color: officialBlue,
+        });
+
+        page.drawText(`Data: ${dateStr} | ID: ${uniqueCode}`, {
+            x: drawX + 10,
+            y: drawY + 8,
+            size: 7,
+            font: helveticaFont,
+            color: officialBlue,
+        });
+    }
+
+    // 5. Salvăm PDF-ul Nou
+    const pdfBytes = await pdfDoc.save();
+    
+    // 6. Gestionăm RLS și Cache-ul: Ștergem și Re-inserăm
+    // Pas A: Luăm semnăturile vechi ca să nu le pierdem
+    const { data: oldSignatures } = await supabase
+        .from('signatures')
+        .select('*')
+        .eq('file_id', fileId);
+
+    // Pas B: Upload fișier nou (Path nou)
+    const timestamp = Date.now();
+    const originalPath = fileData.file_url;
+    const pathParts = originalPath.split('/');
+    const folder = pathParts[0];
+    const newStoragePath = `${folder}/${timestamp}_signed_${fileData.file_name}`;
+
+    const { error: uploadError } = await supabase.storage
+        .from('dms-files')
+        .upload(newStoragePath, pdfBytes, { contentType: 'application/pdf' });
+    if (uploadError) throw uploadError;
+
+    // Pas C: Ștergem înregistrarea veche din DB (Cascade va șterge semnăturile vechi din tabela signatures)
+    // Dar întâi ștergem fișierul fizic vechi
+    await supabase.storage.from('dms-files').remove([originalPath]);
+    
+    const { error: deleteError } = await supabase
+        .from('document_files')
+        .delete()
+        .eq('id', fileId);
+    if (deleteError) throw deleteError;
+
+    // Pas D: Inserăm noua înregistrare (Fișierul Semnat)
+    // Putem păstra numele original la afișare
+    const { data: newFile, error: insertError } = await supabase
+        .from('document_files')
+        .insert({
+            document_id: docId,
+            file_name: fileData.file_name, // Păstrăm numele
+            file_url: newStoragePath,
+            uploaded_by: user.id, // Sau fileData.uploaded_by dacă vrem să păstrăm owner-ul original?
+                                  // Dacă user-ul curent e angajat, el devine owner-ul noii versiuni. E ok.
+            is_signed: true
+        })
+        .select()
+        .single();
+    if (insertError) throw insertError;
+
+    // Pas E: Restaurăm semnăturile vechi (legate de noul ID)
+    if (oldSignatures && oldSignatures.length > 0) {
+        const signaturesToRestore = oldSignatures.map(sig => ({
+            ...sig,
+            id: undefined, // Generăm ID nou
+            file_id: newFile.id // Legăm de noul fișier
+        }));
+        await supabase.from('signatures').insert(signaturesToRestore);
+    }
+
+    // Get current stage for signature record
+    const { data: docInfo } = await supabase
+        .from('documents')
+        .select('workflow_stage')
+        .eq('id', docId)
+        .single();
+
+    // Insert into signatures table (Noua semnătură)
+    await supabase.from('signatures').insert({
+        document_id: docId,
+        file_id: newFile.id,
+        signed_by: user.id,
+        signature_text: `Semnat digital: ${signerName} (ID: ${uniqueCode})`,
+        workflow_stage: docInfo?.workflow_stage || 'unknown'
+    });
+
+    // 8. Log History
+    await supabase.from('workflow_history').insert({
+        document_id: docId,
+        action_by: user.id,
+        action_type: 'signature',
+        comment: `A semnat manual documentul: ${fileData.file_name} (ID: ${uniqueCode})`
+    });
+
+    return true;
   }
 };
