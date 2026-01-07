@@ -156,37 +156,47 @@ export default function Requests() {
         </Link>
       </div>
 
-      <div className="p-4 border rounded-lg bg-slate-50 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div className="lg:col-span-2 relative">
-              <Input name="search" placeholder="Caută după titlu sau descriere..." value={filters.search} onChange={handleInputChange} className="pr-10"/>
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-          </div>
-          <Select value={filters.category || 'all'} onValueChange={(value) => handleFilterChange('category', value)}>
-              <SelectTrigger><SelectValue placeholder="Categorie" /></SelectTrigger>
-              <SelectContent>
-                  <SelectItem value="all">Toate Categoriile</SelectItem>
-                  {CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-              </SelectContent>
-          </Select>
-          <Select value={filters.status || 'all'} onValueChange={(value) => handleFilterChange('status', value)}>
-              <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
-              <SelectContent>
-                  <SelectItem value="all">Toate Statusurile</SelectItem>
-                  {STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-              </SelectContent>
-          </Select>
-          <DateRangePicker date={filters.date} setDate={handleDateChange} placeholder="Filtrează după perioadă" />
+      <div className="p-3 border rounded-xl bg-slate-50 mb-6 flex flex-wrap items-center gap-2">
+        {/* Search - Flexible */}
+        <div className="relative flex-grow min-w-[240px]">
+            <Input name="search" placeholder="Caută după titlu sau descriere..." value={filters.search} onChange={handleInputChange} className="pr-10 bg-white h-9 shadow-sm"/>
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
         </div>
-        <div className="flex items-center justify-end gap-4 mt-4">
-            <Button onClick={handleResetFilters} variant="outline"><X className="mr-2 h-4 w-4"/>Resetează</Button>
+
+        {/* Filters - Tightly packed */}
+        <Select value={filters.category || 'all'} onValueChange={(value) => handleFilterChange('category', value)}>
+            <SelectTrigger className="w-full sm:w-[160px] bg-white h-9 shadow-sm text-xs"><SelectValue placeholder="Categorie" /></SelectTrigger>
+            <SelectContent>
+                <SelectItem value="all">Toate Categoriile</SelectItem>
+                {CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+            </SelectContent>
+        </Select>
+
+        <Select value={filters.status || 'all'} onValueChange={(value) => handleFilterChange('status', value)}>
+            <SelectTrigger className="w-full sm:w-[160px] bg-white h-9 shadow-sm text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+                <SelectItem value="all">Toate Statusurile</SelectItem>
+                {STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+            </SelectContent>
+        </Select>
+
+        <div className="w-full lg:w-auto lg:min-w-[220px]">
+            <DateRangePicker date={filters.date} setDate={handleDateChange} placeholder="Perioadă" className="bg-white h-9 shadow-sm" />
+        </div>
+
+        {/* Sort & Reset - Pushed to the end */}
+        <div className="flex items-center gap-2 ml-auto w-full lg:w-auto justify-between lg:justify-end border-t lg:border-t-0 pt-2 lg:pt-0 mt-1 lg:mt-0">
             <div className="flex items-center gap-2">
-                <Label htmlFor="sort" className="text-sm">Sortează după:</Label>
+                <span className="text-[11px] text-slate-400 uppercase font-bold whitespace-nowrap">Sort:</span>
                 <Select value={filters.sort} onValueChange={(value) => handleFilterChange('sort', value)}>
-                    <SelectTrigger className="w-[180px]"><SelectValue placeholder="Sortează" /></SelectTrigger>
+                    <SelectTrigger className="w-[140px] bg-white h-8 text-xs shadow-sm"><SelectValue placeholder="Sortează" /></SelectTrigger>
                     <SelectContent>{SORT_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                 </Select>
             </div>
+            
+            <Button onClick={handleResetFilters} variant="ghost" size="sm" className="h-8 text-xs text-slate-500 hover:text-red-600 px-2">
+                <X className="mr-1 h-3 w-3"/>Reset
+            </Button>
         </div>
       </div>
 

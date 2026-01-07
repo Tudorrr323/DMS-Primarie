@@ -25,7 +25,7 @@ export default function RequestStatusStepper({ currentStatus, rejectedAtStage })
   if (currentStepIndex === -1) return null;
 
   return (
-    <div className="flex items-center w-full pt-4">
+    <div className="flex items-center w-full pt-4 justify-between">
         {STATUS_STEPS.map((statusKey, index) => {
           const step = WORKFLOW_STAGES[statusKey];
           let isCompleted = index < currentStepIndex;
@@ -50,24 +50,24 @@ export default function RequestStatusStepper({ currentStatus, rejectedAtStage })
           return (
             <React.Fragment key={statusKey}>
               {index > 0 && (
-                <div className="flex-grow h-1" style={{ background: connectorColor }}></div>
+                <div className="flex-grow h-1 mx-0.5" style={{ background: connectorColor }}></div>
               )}
               
-              <div className="flex flex-col items-center flex-shrink-0 mx-2 relative group">
+              <div className="flex flex-col items-center flex-shrink-0 relative group">
                 <div className={cn(
-                  "w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 z-10",
+                  "w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center transition-all duration-300 z-10",
                   isRejectionPoint ? 'bg-red-500 text-white' : 
                   (isCompleted || isCurrent) ? step.bgColor : 'bg-gray-200 text-gray-400'
                 )}>
                   {isRejectionPoint ? (
-                      <XCircle className="w-4 h-4" />
+                      <XCircle className="w-3 h-3 sm:w-4 sm:h-4" />
                   ) : (isCompleted || isCurrent) ? (
-                      <div className="w-2 h-2 bg-white rounded-full"></div>
+                      <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-white rounded-full"></div>
                   ) : null}
                 </div>
 
                 <span className={cn(
-                  "mt-2 text-[10px] uppercase tracking-wider text-center font-bold max-w-[80px]",
+                  "mt-1 sm:mt-2 text-[8px] sm:text-[10px] uppercase tracking-wide text-center font-bold max-w-[50px] sm:max-w-[80px] leading-tight",
                   isRejectionPoint ? 'text-red-600' :
                   (isCompleted || isCurrent) ? step.textColor : 'text-gray-400'
                 )}>
@@ -75,7 +75,7 @@ export default function RequestStatusStepper({ currentStatus, rejectedAtStage })
                 </span>
                 
                 {isRejectionPoint && (
-                    <div className="absolute -top-8 bg-red-600 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                    <div className="absolute -top-8 bg-red-600 text-white text-[10px] sm:text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20">
                         Refuzat la {step.label}
                     </div>
                 )}

@@ -509,7 +509,7 @@ export default function AdminDashboard() {
 
   const renderEmployeesContent = (isExpanded = false) => {
       const allEmps = getProcessedEmployees();
-      const limit = isExpanded ? 12 : 5; 
+      const limit = isExpanded ? 12 : 15; 
       const totalPages = Math.ceil(allEmps.length / limit);
       const page = isExpanded ? employeesPage : 1;
       
@@ -705,7 +705,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <Card className="lg:col-span-2">
+      <Card className="lg:col-span-2 flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between">
               <div>
                   <CardTitle className="flex items-center gap-2">
@@ -718,13 +718,13 @@ export default function AdminDashboard() {
                   <Maximize2 className="h-4 w-4 text-slate-500" />
               </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1 overflow-y-auto min-h-0 pr-2 force-visible-scrollbar">
               {renderActivityLogContent()}
           </CardContent>
       </Card>
 
       {/* ONLINE EMPLOYEES WIDGET */}
-      <Card className="lg:col-span-1 h-full">
+      <Card className="lg:col-span-1 h-full flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between">
               <div>
                   <CardTitle className="flex items-center gap-2">
@@ -740,7 +740,7 @@ export default function AdminDashboard() {
                   <Maximize2 className="h-4 w-4 text-slate-500" />
               </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1 overflow-y-auto min-h-0 pr-2 force-visible-scrollbar">
               {renderEmployeesContent()}
           </CardContent>
       </Card>

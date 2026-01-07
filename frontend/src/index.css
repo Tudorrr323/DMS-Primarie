@@ -117,7 +117,22 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
+    body {
+      @apply bg-background text-foreground;
+    }
   }
-}
+  
+  @layer utilities {
+    .scrollbar-thin::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .scrollbar-thumb-slate-200::-webkit-scrollbar-thumb {
+      background-color: oklch(0.929 0.013 255.508); /* slate-200 approximation */
+      border-radius: 10px;
+    }
+    .scrollbar-track-transparent::-webkit-scrollbar-track {
+      background-color: transparent;
+    }
+  }
+  
