@@ -450,19 +450,58 @@ export const EmployeeService = {
     // Salvăm PDF-ul modificat
     const pdfBytes = await pdfDoc.save();
 
-    // D. SUPRASCRIEM FIȘIERUL ÎN STORAGE
+    // D. UPLOAD CA FIȘIER NOU (evităm problemele de permisiuni la suprascriere/upsert)
+    // Strategia: Upload Nou -> Insert DB Nou -> Delete DB Vechi -> Delete Storage Vechi
+    
+    const timestamp = Date.now();
+    // Curățăm numele vechi de eventuale prefixe de timestamp
+    const cleanFileName = originalFile.file_name.replace(/^\d+_/, '').replace(/^Semnat_/, ''); 
+    const newStoragePath = `${docId}/${timestamp}_Semnat_${cleanFileName}`;
+
     const { error: uploadError } = await supabase.storage
       .from('dms-files')
-      .upload(originalFile.file_url, pdfBytes, {
-        contentType: 'application/pdf',
-        upsert: true 
+      .upload(newStoragePath, pdfBytes, {
+        contentType: 'application/pdf'
       });
 
     if (uploadError) throw uploadError;
 
     // E. ACTUALIZĂM TABELELE SQL
 
-    // 1. Mai întâi aflăm stadiul curent (ex: review_step3) ÎNAINTE să îl schimbăm
+    // 1. Inserăm noul fișier în document_files
+    const { data: newFileRec, error: insertError } = await supabase
+        .from('document_files')
+        .insert({
+            document_id: docId,
+            file_name: originalFile.file_name, // Păstrăm numele original pentru display
+            file_url: newStoragePath,
+            uploaded_by: user.id, // Noul utilizator devine owner
+            is_signed: true
+        })
+        .select()
+        .single();
+    
+    if (insertError) throw insertError;
+
+    // 2. Ștergem înregistrarea veche din document_files
+    // (Atenție: dacă există semnături legate prin FK de file_id, ele se vor șterge prin CASCADE. 
+    // Dar certificatul generat inițial nu are semnături legate de file_id în mod explicit în codul curent)
+    const { error: deleteError } = await supabase
+        .from('document_files')
+        .delete()
+        .eq('id', originalFile.id);
+
+    if (deleteError) throw deleteError;
+
+    // 3. Încercăm să ștergem fișierul fizic vechi (curățenie)
+    // Ignorăm eroarea dacă nu avem drepturi (dar ar trebui să avem drept de delete prin RLS pe tabelă, nu neapărat pe storage)
+    try {
+        await supabase.storage.from('dms-files').remove([originalFile.file_url]);
+    } catch (e) {
+        console.warn("Nu s-a putut șterge fișierul vechi (posibil restricții RLS):", e);
+    }
+
+    // 4. Aflăm stadiul curent (ex: review_step3)
     const { data: docInfo } = await supabase
         .from('documents')
         .select('workflow_stage')
