@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../contexts/AuthContext';
-import { Loader2, UserCog, Clock, AlertTriangle, CheckCircle, BarChart3, Search, X, ChevronLeft, ChevronRight, Activity, Maximize2, FileText } from 'lucide-react';
+import { Loader2, UserCog, Clock, AlertTriangle, CheckCircle, BarChart3, Search, X, ChevronLeft, ChevronRight, Activity, Maximize2, FileText, User } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,6 +62,16 @@ export default function AdminDashboard() {
   
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
+  
+  // Activity Log Pagination
+  const [activityPage, setActivityPage] = useState(1);
+  const [activityTotalPages, setActivityTotalPages] = useState(0);
+  const LOGS_PER_PAGE = 10;
+
+  // Employees Pagination
+  const [employeesPage, setEmployeesPage] = useState(1);
+  const EMPLOYEES_PER_PAGE = 8; // Adjust based on card height
+
   const [filters, setFilters] = useState({
     search: '',
     category: '',
@@ -92,15 +101,31 @@ export default function AdminDashboard() {
     }
   `;
 
+  // Computed Employees List with Online Status
+  const getProcessedEmployees = () => {
+      const activeUserIds = Object.values(onlineUsers).flat().reduce((acc, u) => {
+          acc[u.user_id] = u;
+          return acc;
+      }, {});
+
+      return employees.map(emp => ({
+          ...emp,
+          isOnline: !!activeUserIds[emp.id],
+          current_path: activeUserIds[emp.id]?.current_path
+      })).sort((a, b) => {
+          // Sort by Online first, then Name
+          if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+          return (a.full_name || a.email).localeCompare(b.full_name || b.email);
+      });
+  };
+
   useEffect(() => {
     fetchData();
   }, [user, filters, currentPage]);
 
   useEffect(() => {
-    if (expandedSection === 'activity') {
-        fetchActivityLog(100);
-    }
-  }, [expandedSection]);
+    fetchActivityLog(activityPage);
+  }, [activityPage, expandedSection]);
 
   const fetchData = async () => {
     if (!user) return;
@@ -167,7 +192,6 @@ export default function AdminDashboard() {
 
         if (currentPage === 1 && !filters.search) {
              fetchGlobalStats();
-             fetchActivityLog(10);
         }
 
     } catch (err) {
@@ -191,18 +215,24 @@ export default function AdminDashboard() {
       computeBottlenecks(allDocs);
   };
 
-  const fetchActivityLog = async (limit = 10) => {
-      const { data: history } = await supabase
+  const fetchActivityLog = async (page = 1) => {
+      const from = (page - 1) * LOGS_PER_PAGE;
+      const to = from + LOGS_PER_PAGE - 1;
+
+      const { data: history, count } = await supabase
         .from('workflow_history')
         .select(`
             *,
             action_by_profile:action_by(full_name, email),
             document:document_id(title)
-        `)
+        `, { count: 'exact' })
         .order('created_at', { ascending: false })
-        .limit(limit);
+        .range(from, to);
         
-      if (history) setActivityLog(history);
+      if (history) {
+          setActivityLog(history);
+          setActivityTotalPages(Math.ceil(count / LOGS_PER_PAGE));
+      }
   };
 
   const computeBottlenecks = (docs) => {
@@ -430,60 +460,135 @@ export default function AdminDashboard() {
   );
 
   const renderActivityLogContent = () => (
-      activityLog.length > 0 ? (
+      <div className="space-y-6">
+          {activityLog.length > 0 ? (
+              <div className="space-y-4">
+                  {activityLog.map((log) => (
+                      <div key={log.id} className="flex flex-col sm:flex-row justify-between items-start border-b border-slate-100 pb-3 last:border-0 last:pb-0">
+                          <div className="flex gap-3">
+                              <div className={`mt-1 h-2 w-2 rounded-full shrink-0 
+                                  ${log.action_type === 'rejection' ? 'bg-red-500' : 
+                                    log.action_type === 'signature' ? 'bg-green-500' : 'bg-slate-300'}`} 
+                              />
+                              <div>
+                                  <p className="text-sm text-slate-800">
+                                      <span className="font-semibold">{log.action_by_profile?.full_name || 'Utilizator'}</span> 
+                                      {' '}
+                                      {log.action_type === 'stage_change' ? 'a schimbat statusul' :
+                                       log.action_type === 'signature' ? 'a semnat' :
+                                       log.action_type === 'rejection' ? 'a respins' : 
+                                       log.action_type === 'comment' ? 'a comentat' : 'a acționat'}
+                                      {' '}
+                                      pe cererea <Link to={`/requests/${log.document_id}`} className="text-blue-600 hover:underline">{log.document?.title || 'Document'}</Link>
+                                  </p>
+                                  <p className="text-xs text-slate-500 mt-0.5">
+                                      {(() => {
+                                          let readableComment = log.comment || "";
+                                          ['verificare_initiala', 'verificare_tehnica', 'verificare_finala'].forEach(key => {
+                                              readableComment = readableComment.replace(new RegExp(key, 'g'), getDepartmentLabel(key));
+                                          });
+                                          return readableComment;
+                                      })()}
+                                  </p>
+                              </div>
+                          </div>
+                          <span className="text-xs text-slate-400 whitespace-nowrap ml-8 sm:ml-0">
+                              {new Date(log.created_at).toLocaleString('ro-RO')}
+                          </span>
+                      </div>
+                  ))}
+              </div>
+          ) : (
+              <p className="text-slate-400 text-sm text-center py-10">Nicio activitate recentă.</p>
+          )}
+
+          {activityTotalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 pt-4 border-t">
+                <Button variant="outline" size="icon" onClick={() => setActivityPage(p => Math.max(1, p - 1))} disabled={activityPage <= 1}>
+                    <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm text-slate-600">Pagina {activityPage} din {activityTotalPages}</span>
+                <Button variant="outline" size="icon" onClick={() => setActivityPage(p => Math.min(activityTotalPages, p + 1))} disabled={activityPage >= activityTotalPages}>
+                    <ChevronRight className="h-4 w-4" />
+                </Button>
+            </div>
+          )}
+      </div>
+  );
+
+  const renderEmployeesContent = (isExpanded = false) => {
+      const allEmps = getProcessedEmployees();
+      const limit = isExpanded ? 12 : 5; 
+      const totalPages = Math.ceil(allEmps.length / limit);
+      const page = isExpanded ? employeesPage : 1;
+      
+      const displayedEmps = isExpanded 
+          ? allEmps.slice((page - 1) * limit, page * limit)
+          : allEmps.slice(0, limit);
+
+      return (
           <div className="space-y-4">
-              {activityLog.map((log) => (
-                  <div key={log.id} className="flex flex-col sm:flex-row justify-between items-start border-b border-slate-100 pb-3 last:border-0 last:pb-0">
-                      <div className="flex gap-3">
-                          <div className={`mt-1 h-2 w-2 rounded-full shrink-0 
-                              ${log.action_type === 'rejection' ? 'bg-red-500' : 
-                                log.action_type === 'signature' ? 'bg-green-500' : 'bg-slate-300'}`} 
-                          />
-                          <div>
-                              <p className="text-sm text-slate-800">
-                                  <span className="font-semibold">{log.action_by_profile?.full_name || 'Utilizator'}</span> 
-                                  {' '}
-                                  {log.action_type === 'stage_change' ? 'a schimbat statusul' :
-                                   log.action_type === 'signature' ? 'a semnat' :
-                                   log.action_type === 'rejection' ? 'a respins' : 
-                                   log.action_type === 'comment' ? 'a comentat' : 'a acționat'}
-                                  {' '}
-                                  pe cererea <Link to={`/requests/${log.document_id}`} className="text-blue-600 hover:underline">{log.document?.title || 'Document'}</Link>
+              <div className="space-y-3">
+                  {displayedEmps.map((emp) => (
+                      <div key={emp.id} className={`flex items-center gap-3 p-2 rounded border transition-colors ${emp.isOnline ? 'bg-green-50/50 border-green-100' : 'bg-slate-50 border-transparent opacity-70 grayscale-[0.5]'}`}>
+                          <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs ${emp.isOnline ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>
+                              {emp.email?.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-medium truncate ${emp.isOnline ? 'text-slate-900' : 'text-slate-500'}`}>
+                                  {emp.full_name || emp.email}
                               </p>
-                              <p className="text-xs text-slate-500 mt-0.5">
-                                  {(() => {
-                                      let readableComment = log.comment || "";
-                                      ['verificare_initiala', 'verificare_tehnica', 'verificare_finala'].forEach(key => {
-                                          readableComment = readableComment.replace(new RegExp(key, 'g'), getDepartmentLabel(key));
-                                      });
-                                      return readableComment;
-                                  })()}
-                              </p>
+                              <div className="flex items-center gap-2">
+                                  <span className={`w-1.5 h-1.5 rounded-full ${emp.isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`} />
+                                  <p className="text-xs text-slate-500 truncate">
+                                      {emp.isOnline ? (
+                                          emp.current_path?.includes('/requests/') ? 'Lucrează la dosar' : 'Activ în platformă'
+                                      ) : 'Offline'}
+                                  </p>
+                              </div>
                           </div>
                       </div>
-                      <span className="text-xs text-slate-400 whitespace-nowrap ml-8 sm:ml-0">
-                          {new Date(log.created_at).toLocaleString('ro-RO')}
-                      </span>
-                  </div>
-              ))}
+                  ))}
+                  {!isExpanded && allEmps.length > limit && (
+                      <p className="text-xs text-center text-slate-400 pt-2">
+                          + încă {allEmps.length - limit} funcționari
+                      </p>
+                  )}
+              </div>
+
+              {isExpanded && totalPages > 1 && (
+                <div className="flex items-center justify-center gap-4 pt-4 border-t">
+                    <Button variant="outline" size="icon" onClick={() => setEmployeesPage(p => Math.max(1, p - 1))} disabled={employeesPage <= 1}>
+                        <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm text-slate-600">Pagina {employeesPage} din {totalPages}</span>
+                    <Button variant="outline" size="icon" onClick={() => setEmployeesPage(p => Math.min(totalPages, p + 1))} disabled={employeesPage >= totalPages}>
+                        <ChevronRight className="h-4 w-4" />
+                    </Button>
+                </div>
+              )}
           </div>
-      ) : (
-          <p className="text-slate-400 text-sm">Nicio activitate recentă.</p>
-      )
-  );
+      );
+  };
 
   if (loading && requests.length === 0) {
     return <div className="p-10 flex justify-center"><Loader2 className="animate-spin h-8 w-8 text-slate-400" /></div>;
   }
 
+  // MOD VIZUALIZARE EXTINSĂ (Înlocuiește complet dashboard-ul pentru a folosi scroll-ul natural)
   if (expandedSection) {
       return (
         <div className="max-w-7xl mx-auto pb-10 pt-2 animate-in fade-in zoom-in-95 duration-200">
             <style>{scrollbarStyles}</style>
             <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border mb-6 sticky top-0 z-20">
                 <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                    {expandedSection === 'requests' ? <FileText className="h-6 w-6"/> : <Activity className="h-6 w-6"/>}
-                    {expandedSection === 'requests' ? 'Registru General Cereri' : 'Jurnal Activitate'}
+                    {expandedSection === 'requests' ? <FileText className="h-6 w-6"/> : 
+                     expandedSection === 'activity' ? <Activity className="h-6 w-6"/> : 
+                     <UserCog className="h-6 w-6"/>}
+                    
+                    {expandedSection === 'requests' ? 'Registru General Cereri' : 
+                     expandedSection === 'activity' ? 'Jurnal Activitate' : 
+                     'Listă Completă Funcționari'}
                 </h2>
                 <Button variant="outline" size="icon" onClick={() => setExpandedSection(null)}>
                     <X className="h-6 w-6" />
@@ -491,7 +596,9 @@ export default function AdminDashboard() {
             </div>
             
             <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-8">
-                {expandedSection === 'requests' ? renderRequestsContent(true) : renderActivityLogContent(true)}
+                {expandedSection === 'requests' ? renderRequestsContent(true) : 
+                 expandedSection === 'activity' ? renderActivityLogContent(true) :
+                 renderEmployeesContent(true)}
             </div>
         </div>
       );
@@ -499,6 +606,9 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-10">
+      {/* GLOBAL STYLES FOR SCROLLBAR */}
+      <style>{scrollbarStyles}</style>
+
       <div className="flex justify-between items-center">
         <div>
             <h2 className="text-3xl font-bold tracking-tight text-slate-800">Panou Administrator</h2>
@@ -550,6 +660,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className="flex flex-col gap-8">
+          
           <Card>
               <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -621,49 +732,25 @@ export default function AdminDashboard() {
           </CardContent>
       </Card>
 
+      {/* ONLINE EMPLOYEES WIDGET */}
       <Card className="lg:col-span-1 h-full">
-          <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                  <span className="relative flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                  </span>
-                  Funcționari Online
-              </CardTitle>
-              <CardDescription>Monitorizare în timp real</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                  <CardTitle className="flex items-center gap-2">
+                      <span className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                      </span>
+                      Funcționari
+                  </CardTitle>
+                  <CardDescription>Status echipă în timp real</CardDescription>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setExpandedSection('employees')}>
+                  <Maximize2 className="h-4 w-4 text-slate-500" />
+              </Button>
           </CardHeader>
           <CardContent>
-              <div className="space-y-4">
-                  {Object.keys(onlineUsers).length > 0 ? (
-                      Object.values(onlineUsers).flat().map((usr, i) => (
-                          <div key={i} className="flex items-center gap-3 p-2 rounded hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-colors">
-                              <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs">
-                                  {usr.email?.slice(0, 2).toUpperCase()}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-slate-900 truncate">
-                                      {usr.email}
-                                  </p>
-                                  <p className="text-xs text-slate-500 truncate flex items-center gap-1">
-                                      {usr.current_path?.includes('/requests/') ? (
-                                          <>
-                                            <span className="w-1.5 h-1.5 bg-orange-400 rounded-full inline-block" />
-                                            Lucrează la dosar
-                                          </>
-                                      ) : (
-                                          <>
-                                            <span className="w-1.5 h-1.5 bg-green-400 rounded-full inline-block" />
-                                            Navighează
-                                          </>
-                                      )}
-                                  </p>
-                              </div>
-                          </div>
-                      ))
-                  ) : (
-                      <p className="text-slate-400 text-sm text-center py-4">Nimeni online.</p>
-                  )}
-              </div>
+              {renderEmployeesContent()}
           </CardContent>
       </Card>
       </div>
