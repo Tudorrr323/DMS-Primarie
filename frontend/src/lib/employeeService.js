@@ -461,25 +461,39 @@ export const EmployeeService = {
     if (uploadError) throw uploadError;
 
     // E. ACTUALIZĂM TABELELE SQL
+
+    // 1. Mai întâi aflăm stadiul curent (ex: review_step3) ÎNAINTE să îl schimbăm
+    const { data: docInfo } = await supabase
+        .from('documents')
+        .select('workflow_stage')
+        .eq('id', docId)
+        .single();
+
+    const currentStage = docInfo?.workflow_stage || 'review_step3';
+
+    // 2. Inserăm Semnătura
     await supabase.from('signatures').insert({
         document_id: docId,
         signed_by: user.id,
         signature_text: `Aprobare Finală - ${signerNameZ} (ID: ${uniqueCode})`,
-        workflow_stage: 'review_step3'
+        workflow_stage: currentStage // Salvăm stadiul corect
     });
 
+    // 3. Inserăm în Istoric (AICI ERA PROBLEMA)
     await supabase.from('workflow_history').insert({
         document_id: docId,
         action_by: user.id,
-        action_type: 'signature',
-        to_stage: 'completed',
+        action_type: 'stage_change', // E o schimbare de stadiu (finalizare)
+        from_stage: currentStage,    // <--- FIX: Acum trimitem 'review_step3'
+        to_stage: 'completed',       // <--- Destinația
         comment: `A contrasemnat certificatul și a finalizat dosarul. (ID: ${uniqueCode})`
     });
-    
-     await supabase.from('documents')
+
+    // 4. Marcăm documentul ca finalizat
+    await supabase.from('documents')
       .update({ 
           workflow_stage: 'completed',
-          completed_at: new Date()
+          completed_at: new Date().toISOString() // E bine să fie ISO string
       })
       .eq('id', docId);
   },

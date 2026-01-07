@@ -5,9 +5,11 @@ import { useAuthContext } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Toaster } from 'sonner';
+import { usePresence } from '../hooks/usePresence';
 
 export default function Layout() {
   const { user } = useAuthContext();
+  usePresence(); // Activate Presence Tracking globally
   const navigate = useNavigate();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);

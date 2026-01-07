@@ -30,7 +30,8 @@ export default function RequestStatusStepper({ currentStatus, rejectedAtStage })
   if (currentStepIndex === -1) return null;
 
   return (
-    <div className="flex items-center w-full pt-4">
+    <div className="w-full overflow-x-auto pb-4 px-1">
+      <div className="flex items-center w-full min-w-[300px]">
         {STATUS_STEPS.map((statusKey, index) => {
           const step = WORKFLOW_STAGES[statusKey];
           
@@ -111,6 +112,7 @@ export default function RequestStatusStepper({ currentStatus, rejectedAtStage })
             </React.Fragment>
           );
         })}
+      </div>
     </div>
   );
 }

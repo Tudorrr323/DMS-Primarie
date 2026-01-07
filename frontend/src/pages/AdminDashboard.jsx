@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../contexts/AuthContext';
-import { Loader2, UserCog, Clock, AlertTriangle, CheckCircle, BarChart3, Search, X, ChevronLeft, ChevronRight, Activity } from 'lucide-react';
+import { Loader2, UserCog, Clock, AlertTriangle, CheckCircle, BarChart3, Search, X, ChevronLeft, ChevronRight, Activity, Maximize2, FileText } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,10 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import RequestStatusStepper from '@/components/RequestStatusStepper';
-import { WORKFLOW_STAGES } from '../lib/workflow-utils';
+import { WORKFLOW_STAGES, getDepartmentLabel } from '../lib/workflow-utils';
 import { toast } from 'sonner';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { usePresence } from '../hooks/usePresence';
 
 const ITEMS_PER_PAGE = 6;
 
@@ -35,12 +37,29 @@ const STATUSES = [
 
 export default function AdminDashboard() {
   const { user } = useAuthContext();
+  const onlineUsers = usePresence();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({ total: 0, pending: 0, completed: 0, rejected: 0 });
   const [bottlenecks, setBottlenecks] = useState([]);
   const [requests, setRequests] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [activityLog, setActivityLog] = useState([]);
+  
+  const [searchParams, setSearchParams] = useSearchParams();
+  const expandedSection = searchParams.get('view');
+
+  const setExpandedSection = (section) => {
+      setSearchParams(prev => {
+          const newParams = new URLSearchParams(prev);
+          if (section) {
+              newParams.set('view', section);
+          } else {
+              newParams.delete('view');
+          }
+          return newParams;
+      });
+  };
   
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -55,9 +74,33 @@ export default function AdminDashboard() {
   const [reassignId, setReassignId] = useState(null);
   const [targetEmployee, setTargetEmployee] = useState('');
 
+  const scrollbarStyles = `
+    .force-visible-scrollbar {
+        overflow-y: scroll !important;
+    }
+    .force-visible-scrollbar::-webkit-scrollbar {
+        width: 14px;
+        display: block !important;
+    }
+    .force-visible-scrollbar::-webkit-scrollbar-thumb {
+        background-color: #94a3b8;
+        border-radius: 7px;
+        border: 3px solid white;
+    }
+    .force-visible-scrollbar::-webkit-scrollbar-track {
+        background-color: white;
+    }
+  `;
+
   useEffect(() => {
     fetchData();
   }, [user, filters, currentPage]);
+
+  useEffect(() => {
+    if (expandedSection === 'activity') {
+        fetchActivityLog(100);
+    }
+  }, [expandedSection]);
 
   const fetchData = async () => {
     if (!user) return;
@@ -124,7 +167,7 @@ export default function AdminDashboard() {
 
         if (currentPage === 1 && !filters.search) {
              fetchGlobalStats();
-             fetchActivityLog();
+             fetchActivityLog(10);
         }
 
     } catch (err) {
@@ -148,7 +191,7 @@ export default function AdminDashboard() {
       computeBottlenecks(allDocs);
   };
 
-  const fetchActivityLog = async () => {
+  const fetchActivityLog = async (limit = 10) => {
       const { data: history } = await supabase
         .from('workflow_history')
         .select(`
@@ -157,7 +200,7 @@ export default function AdminDashboard() {
             document:document_id(title)
         `)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(limit);
         
       if (history) setActivityLog(history);
   };
@@ -221,7 +264,7 @@ export default function AdminDashboard() {
               action_by: user.id,
               action_type: 'comment',
               to_stage: newStage,
-              comment: `ADMIN: Reasignat către ${employee?.full_name || 'alt funcționar'} (Departament: ${employee?.department}).`
+              comment: `ADMIN: Reasignat către ${employee?.full_name || 'alt funcționar'} (Departament: ${getDepartmentLabel(employee?.department)}).`
           });
 
           toast.success("Cerere reasignată și mutată la stadiul corespunzător!");
@@ -254,8 +297,204 @@ export default function AdminDashboard() {
     setCurrentPage(1);
   };
 
+  const handleManualRefresh = async () => {
+      setRefreshing(true);
+      await fetchData();
+      setRefreshing(false);
+  };
+
+  const renderRequestsContent = (isExpanded = false) => (
+      <div className="space-y-6">
+          <div className="p-4 border rounded-lg bg-slate-50">
+            <div className="flex flex-col gap-4">
+                <div className="flex flex-wrap gap-3 items-center">
+                    <div className="flex-1 w-full min-w-[200px] relative order-1 sm:order-none">
+                        <Input name="search" placeholder="Caută titlu/descriere..." value={filters.search} onChange={(e) => handleFilterChange('search', e.target.value)} className="pr-10 bg-white"/>
+                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                    </div>
+                    <div className="w-full sm:w-[180px] order-2 sm:order-none">
+                        <Select value={filters.category || 'all'} onValueChange={(value) => handleFilterChange('category', value)}>
+                            <SelectTrigger className="bg-white"><SelectValue placeholder="Categorie" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Toate Categoriile</SelectItem>
+                                {CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="w-full sm:w-[180px] order-3 sm:order-none">
+                        <Select value={filters.status || 'all'} onValueChange={(value) => handleFilterChange('status', value)}>
+                            <SelectTrigger className="bg-white"><SelectValue placeholder="Status" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Toate Statusurile</SelectItem>
+                                {STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="w-full sm:w-[240px] order-4 sm:order-none">
+                        <DateRangePicker date={filters.date} setDate={handleDateChange} placeholder="Filtrează după perioadă" className="bg-white w-full" />
+                    </div>
+                    <Button onClick={handleResetFilters} variant="ghost" size="sm" className="h-10 w-full sm:w-auto order-5 sm:order-none">
+                        <X className="mr-2 h-4 w-4"/>Resetează
+                    </Button>
+                </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+              {requests.length > 0 ? (
+                  requests.map(req => (
+                      <div key={req.id} className="p-4 border rounded-lg bg-white hover:bg-slate-50 transition-colors">
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                              <div>
+                                  <Link to={`/requests/${req.id}`} className="font-semibold text-slate-900 hover:text-blue-600 hover:underline">
+                                      {req.title}
+                                  </Link>
+                                  <div className="flex items-center gap-2 mt-1">
+                                      <span className="text-xs text-slate-500">
+                                          {new Date(req.created_at).toLocaleDateString()}
+                                      </span>
+                                      <Badge variant="outline" className="text-[10px] font-normal">
+                                          {req.category.replace('_', ' ')}
+                                      </Badge>
+                                  </div>
+                              </div>
+                              
+                              <div className="flex items-center gap-4">
+                                  <div className="text-right">
+                                      <p className="text-xs font-medium text-slate-500">Asignat la / Procesat de:</p>
+                                      {req.assignee ? (
+                                          <p className="text-sm font-bold text-slate-800">{req.assignee.full_name || req.assignee.email}</p>
+                                      ) : (
+                                          <p className="text-sm font-bold text-orange-600 italic">
+                                              {req.workflow_stage === 'completed' ? 'Finalizat' : 
+                                               req.workflow_stage === 'rejected' ? (req.rejectedByName || 'Respins') : 'Neasignat'}
+                                          </p>
+                                      )}
+                                  </div>
+                                  
+                                  {!['completed', 'rejected'].includes(req.workflow_stage) && (
+                                      reassignId === req.id ? (
+                                          <div className="flex items-center gap-2 animate-in slide-in-from-right-5">
+                                              <Select value={targetEmployee} onValueChange={setTargetEmployee}>
+                                                  <SelectTrigger className="w-[180px] h-9">
+                                                      <SelectValue placeholder="Alege..." />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                      {employees.map(e => (
+                                                          <SelectItem key={e.id} value={e.id}>{e.full_name || e.email}</SelectItem>
+                                                      ))}
+                                                  </SelectContent>
+                                              </Select>
+                                              <Button size="sm" onClick={handleReassign} disabled={!targetEmployee}>OK</Button>
+                                              <Button size="sm" variant="ghost" onClick={() => setReassignId(null)}>X</Button>
+                                          </div>
+                                      ) : (
+                                          <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            onClick={() => setReassignId(req.id)}
+                                            className="shrink-0"
+                                          >
+                                              <UserCog className="h-4 w-4 mr-2" />
+                                              Reasignează
+                                          </Button>
+                                      )
+                                  )}
+                              </div>
+                          </div>
+                          <div className="mt-4 border-t pt-3">
+                              <RequestStatusStepper 
+                                currentStatus={req.workflow_stage} 
+                                rejectedAtStage={req.rejectedAtStage} 
+                              />
+                          </div>
+                      </div>
+                  ))
+              ) : (
+                  <p className="text-center text-slate-500 py-10">Nu au fost găsite cereri conform filtrelor.</p>
+              )}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 pt-4 border-t">
+                <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1}>
+                    <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm text-slate-600">Pagina {currentPage} din {totalPages}</span>
+                <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>
+                    <ChevronRight className="h-4 w-4" />
+                </Button>
+            </div>
+          )}
+      </div>
+  );
+
+  const renderActivityLogContent = () => (
+      activityLog.length > 0 ? (
+          <div className="space-y-4">
+              {activityLog.map((log) => (
+                  <div key={log.id} className="flex flex-col sm:flex-row justify-between items-start border-b border-slate-100 pb-3 last:border-0 last:pb-0">
+                      <div className="flex gap-3">
+                          <div className={`mt-1 h-2 w-2 rounded-full shrink-0 
+                              ${log.action_type === 'rejection' ? 'bg-red-500' : 
+                                log.action_type === 'signature' ? 'bg-green-500' : 'bg-slate-300'}`} 
+                          />
+                          <div>
+                              <p className="text-sm text-slate-800">
+                                  <span className="font-semibold">{log.action_by_profile?.full_name || 'Utilizator'}</span> 
+                                  {' '}
+                                  {log.action_type === 'stage_change' ? 'a schimbat statusul' :
+                                   log.action_type === 'signature' ? 'a semnat' :
+                                   log.action_type === 'rejection' ? 'a respins' : 
+                                   log.action_type === 'comment' ? 'a comentat' : 'a acționat'}
+                                  {' '}
+                                  pe cererea <Link to={`/requests/${log.document_id}`} className="text-blue-600 hover:underline">{log.document?.title || 'Document'}</Link>
+                              </p>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                  {(() => {
+                                      let readableComment = log.comment || "";
+                                      ['verificare_initiala', 'verificare_tehnica', 'verificare_finala'].forEach(key => {
+                                          readableComment = readableComment.replace(new RegExp(key, 'g'), getDepartmentLabel(key));
+                                      });
+                                      return readableComment;
+                                  })()}
+                              </p>
+                          </div>
+                      </div>
+                      <span className="text-xs text-slate-400 whitespace-nowrap ml-8 sm:ml-0">
+                          {new Date(log.created_at).toLocaleString('ro-RO')}
+                      </span>
+                  </div>
+              ))}
+          </div>
+      ) : (
+          <p className="text-slate-400 text-sm">Nicio activitate recentă.</p>
+      )
+  );
+
   if (loading && requests.length === 0) {
     return <div className="p-10 flex justify-center"><Loader2 className="animate-spin h-8 w-8 text-slate-400" /></div>;
+  }
+
+  if (expandedSection) {
+      return (
+        <div className="max-w-7xl mx-auto pb-10 pt-2 animate-in fade-in zoom-in-95 duration-200">
+            <style>{scrollbarStyles}</style>
+            <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border mb-6 sticky top-0 z-20">
+                <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                    {expandedSection === 'requests' ? <FileText className="h-6 w-6"/> : <Activity className="h-6 w-6"/>}
+                    {expandedSection === 'requests' ? 'Registru General Cereri' : 'Jurnal Activitate'}
+                </h2>
+                <Button variant="outline" size="icon" onClick={() => setExpandedSection(null)}>
+                    <X className="h-6 w-6" />
+                </Button>
+            </div>
+            
+            <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-8">
+                {expandedSection === 'requests' ? renderRequestsContent(true) : renderActivityLogContent(true)}
+            </div>
+        </div>
+      );
   }
 
   return (
@@ -265,7 +504,10 @@ export default function AdminDashboard() {
             <h2 className="text-3xl font-bold tracking-tight text-slate-800">Panou Administrator</h2>
             <p className="text-slate-500 mt-1">Monitorizare performanță și gestionare flux.</p>
         </div>
-        <Button onClick={fetchData} variant="outline"><Clock className="mr-2 h-4 w-4" /> Actualizează</Button>
+        <Button onClick={handleManualRefresh} variant="outline" disabled={refreshing}>
+            <Clock className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Se actualizează...' : 'Actualizează'}
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -308,7 +550,6 @@ export default function AdminDashboard() {
       </div>
 
       <div className="flex flex-col gap-8">
-          
           <Card>
               <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -346,185 +587,86 @@ export default function AdminDashboard() {
           </Card>
 
           <Card>
-              <CardHeader>
-                  <CardTitle>Registru General Cereri</CardTitle>
-                  <CardDescription>Vizualizează, filtrează și gestionează toate cererile.</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                      <CardTitle>Registru General Cereri</CardTitle>
+                      <CardDescription>Vizualizează, filtrează și gestionează toate cererile.</CardDescription>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => setExpandedSection('requests')}>
+                      <Maximize2 className="h-4 w-4 text-slate-500" />
+                  </Button>
               </CardHeader>
-              <CardContent className="space-y-6">
-                      
-                      <div className="p-4 border rounded-lg bg-slate-50">
-                        <div className="flex flex-col gap-4">
-                            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                                <div className="md:col-span-4 relative">
-                                    <Input name="search" placeholder="Caută titlu/descriere..." value={filters.search} onChange={(e) => handleFilterChange('search', e.target.value)} className="pr-10 bg-white"/>
-                                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                                </div>
-                                <div className="md:col-span-3">
-                                    <Select value={filters.category || 'all'} onValueChange={(value) => handleFilterChange('category', value)}>
-                                        <SelectTrigger className="bg-white"><SelectValue placeholder="Categorie" /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">Toate Categoriile</SelectItem>
-                                            {CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="md:col-span-3">
-                                    <Select value={filters.status || 'all'} onValueChange={(value) => handleFilterChange('status', value)}>
-                                        <SelectTrigger className="bg-white"><SelectValue placeholder="Status" /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">Toate Statusurile</SelectItem>
-                                            {STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="md:col-span-2">
-                                     <Button onClick={handleResetFilters} variant="outline" className="w-full bg-white text-slate-600 hover:bg-slate-100 border-slate-300">
-                                        <X className="mr-2 h-4 w-4"/>Resetează
-                                     </Button>
-                                </div>
-                            </div>
-                            
-                            <div className="flex justify-start">
-                                <div className="w-full md:w-auto min-w-[300px]">
-                                    <DateRangePicker date={filters.date} setDate={handleDateChange} placeholder="Filtrează după perioadă" className="bg-white" />
-                                </div>
-                            </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                          {requests.length > 0 ? (
-                              requests.map(req => (
-                                  <div key={req.id} className="p-4 border rounded-lg bg-white hover:bg-slate-50 transition-colors">
-                                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                          <div>
-                                              <Link to={`/requests/${req.id}`} className="font-semibold text-slate-900 hover:text-blue-600 hover:underline">
-                                                  {req.title}
-                                              </Link>
-                                              <div className="flex items-center gap-2 mt-1">
-                                                  <span className="text-xs text-slate-500">
-                                                      {new Date(req.created_at).toLocaleDateString()}
-                                                  </span>
-                                                  <Badge variant="outline" className="text-[10px] font-normal">
-                                                      {req.category.replace('_', ' ')}
-                                                  </Badge>
-                                              </div>
-                                          </div>
-                                          
-                                          <div className="flex items-center gap-4">
-                                              <div className="text-right">
-                                                  <p className="text-xs font-medium text-slate-500">Asignat la / Procesat de:</p>
-                                                  {req.assignee ? (
-                                                      <p className="text-sm font-bold text-slate-800">{req.assignee.full_name || req.assignee.email}</p>
-                                                  ) : (
-                                                      <p className="text-sm font-bold text-orange-600 italic">
-                                                          {req.workflow_stage === 'completed' ? 'Finalizat' : 
-                                                           req.workflow_stage === 'rejected' ? (req.rejectedByName || 'Respins') : 'Neasignat'}
-                                                      </p>
-                                                  )}
-                                              </div>
-                                              
-                                              {!['completed', 'rejected'].includes(req.workflow_stage) && (
-                                                  reassignId === req.id ? (
-                                                      <div className="flex items-center gap-2 animate-in slide-in-from-right-5">
-                                                          <Select value={targetEmployee} onValueChange={setTargetEmployee}>
-                                                              <SelectTrigger className="w-[180px] h-9">
-                                                                  <SelectValue placeholder="Alege..." />
-                                                              </SelectTrigger>
-                                                              <SelectContent>
-                                                                  {employees.map(e => (
-                                                                      <SelectItem key={e.id} value={e.id}>{e.full_name || e.email}</SelectItem>
-                                                                  ))}
-                                                              </SelectContent>
-                                                          </Select>
-                                                          <Button size="sm" onClick={handleReassign} disabled={!targetEmployee}>OK</Button>
-                                                          <Button size="sm" variant="ghost" onClick={() => setReassignId(null)}>X</Button>
-                                                      </div>
-                                                  ) : (
-                                                      <Button 
-                                                        variant="outline" 
-                                                        size="sm" 
-                                                        onClick={() => setReassignId(req.id)}
-                                                        className="shrink-0"
-                                                      >
-                                                          <UserCog className="h-4 w-4 mr-2" />
-                                                          Reasignează
-                                                      </Button>
-                                                  )
-                                              )}
-                                          </div>
-                                      </div>
-                                      <div className="mt-4 border-t pt-3">
-                                          <RequestStatusStepper 
-                                            currentStatus={req.workflow_stage} 
-                                            rejectedAtStage={req.rejectedAtStage} 
-                                          />
-                                      </div>
-                                  </div>
-                              ))
-                          ) : (
-                              <p className="text-center text-slate-500 py-10">Nu au fost găsite cereri conform filtrelor.</p>
-                          )}
-                      </div>
-
-                      {totalPages > 1 && (
-                        <div className="flex items-center justify-center gap-4 pt-4 border-t">
-                            <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1}>
-                                <ChevronLeft className="h-4 w-4" />
-                            </Button>
-                            <span className="text-sm text-slate-600">Pagina {currentPage} din {totalPages}</span>
-                            <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>
-                                <ChevronRight className="h-4 w-4" />
-                            </Button>
-                        </div>
-                      )}
-                  </CardContent>
-              </Card>
+              <CardContent>
+                  {renderRequestsContent()}
+              </CardContent>
+          </Card>
       </div>
 
-      <Card>
-          <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-blue-600" />
-                  Activitate Recentă în Sistem
-              </CardTitle>
-              <CardDescription>Jurnalul global al ultimelor acțiuni efectuate.</CardDescription>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <Card className="lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                  <CardTitle className="flex items-center gap-2">
+                      <Activity className="h-5 w-5 text-blue-600" />
+                      Activitate Recentă în Sistem
+                  </CardTitle>
+                  <CardDescription>Jurnalul global al ultimelor acțiuni efectuate.</CardDescription>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setExpandedSection('activity')}>
+                  <Maximize2 className="h-4 w-4 text-slate-500" />
+              </Button>
           </CardHeader>
           <CardContent>
-              {activityLog.length > 0 ? (
-                  <div className="space-y-4">
-                      {activityLog.map((log) => (
-                          <div key={log.id} className="flex flex-col sm:flex-row justify-between items-start border-b border-slate-100 pb-3 last:border-0 last:pb-0">
-                              <div className="flex gap-3">
-                                  <div className={`mt-1 h-2 w-2 rounded-full shrink-0 
-                                      ${log.action_type === 'rejection' ? 'bg-red-500' : 
-                                        log.action_type === 'signature' ? 'bg-green-500' : 'bg-slate-300'}`} 
-                                  />
-                                  <div>
-                                      <p className="text-sm text-slate-800">
-                                          <span className="font-semibold">{log.action_by_profile?.full_name || 'Utilizator'}</span> 
-                                          {' '}
-                                          {log.action_type === 'stage_change' ? 'a schimbat statusul' :
-                                           log.action_type === 'signature' ? 'a semnat' :
-                                           log.action_type === 'rejection' ? 'a respins' : 
-                                           log.action_type === 'comment' ? 'a comentat' : 'a acționat'}
-                                          {' '}
-                                          pe cererea <Link to={`/requests/${log.document_id}`} className="text-blue-600 hover:underline">{log.document?.title || 'Document'}</Link>
-                                      </p>
-                                      <p className="text-xs text-slate-500 mt-0.5">{log.comment}</p>
-                                  </div>
-                              </div>
-                              <span className="text-xs text-slate-400 whitespace-nowrap ml-8 sm:ml-0">
-                                  {new Date(log.created_at).toLocaleString('ro-RO')}
-                              </span>
-                          </div>
-                      ))}
-                  </div>
-              ) : (
-                  <p className="text-slate-400 text-sm">Nicio activitate recentă.</p>
-              )}
+              {renderActivityLogContent()}
           </CardContent>
       </Card>
+
+      <Card className="lg:col-span-1 h-full">
+          <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                  </span>
+                  Funcționari Online
+              </CardTitle>
+              <CardDescription>Monitorizare în timp real</CardDescription>
+          </CardHeader>
+          <CardContent>
+              <div className="space-y-4">
+                  {Object.keys(onlineUsers).length > 0 ? (
+                      Object.values(onlineUsers).flat().map((usr, i) => (
+                          <div key={i} className="flex items-center gap-3 p-2 rounded hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-colors">
+                              <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs">
+                                  {usr.email?.slice(0, 2).toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-slate-900 truncate">
+                                      {usr.email}
+                                  </p>
+                                  <p className="text-xs text-slate-500 truncate flex items-center gap-1">
+                                      {usr.current_path?.includes('/requests/') ? (
+                                          <>
+                                            <span className="w-1.5 h-1.5 bg-orange-400 rounded-full inline-block" />
+                                            Lucrează la dosar
+                                          </>
+                                      ) : (
+                                          <>
+                                            <span className="w-1.5 h-1.5 bg-green-400 rounded-full inline-block" />
+                                            Navighează
+                                          </>
+                                      )}
+                                  </p>
+                              </div>
+                          </div>
+                      ))
+                  ) : (
+                      <p className="text-slate-400 text-sm text-center py-4">Nimeni online.</p>
+                  )}
+              </div>
+          </CardContent>
+      </Card>
+      </div>
     </div>
   );
 }

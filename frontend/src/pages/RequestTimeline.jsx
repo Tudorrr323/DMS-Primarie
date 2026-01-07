@@ -11,7 +11,7 @@ import PDFSigner from '../components/PDFSigner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, ArrowLeft, FileText, Download, Send, XCircle, CheckCircle, UserPlus, Users, Upload, Trash2, PenTool } from 'lucide-react';
+import { Loader2, ArrowLeft, FileText, Download, Send, XCircle, CheckCircle, UserPlus, Users, Upload, Trash2, PenTool, Maximize2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,6 +25,7 @@ export default function RequestTimeline() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [previewFileId, setPreviewFileId] = useState(null);
+  const [showFullTimeline, setShowFullTimeline] = useState(false);
   
   // Signing State
   const [signingFile, setSigningFile] = useState(null); // The file object info
@@ -40,6 +41,41 @@ export default function RequestTimeline() {
   const [nextDept, setNextDept] = useState(null); // Dynamic next department
   
   const fileInputRef = useRef(null);
+
+  const renderTimelineItems = () => (
+      <div className="relative border-l border-slate-200 ml-3 space-y-8 pb-4">
+          {request.workflow_history && request.workflow_history.length > 0 ? (
+              request.workflow_history.map((entry, i) => (
+                  <div key={entry.id} className="ml-6 relative">
+                      <div className="absolute -left-[31px] mt-1.5 h-3 w-3 rounded-full border border-white bg-slate-300 ring-4 ring-white"></div>
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start">
+                          <div>
+                              <p className="text-sm font-medium text-slate-900">
+                                  {entry.action_type === 'stage_change' ? 'Schimbare Status' : 
+                                   entry.action_type === 'comment' ? 'Notă Internă' : 
+                                   entry.action_type === 'rejection' ? 'Cerere Respinsă' : 
+                                   entry.action_type === 'file_upload' ? 'Fișier Încărcat' : 
+                                   entry.action_type === 'file_delete' ? 'Ștergere Fișier' : 
+                                   entry.action_type === 'signature' ? 'Dosar Semnat' : 'Acțiune'}
+                              </p>
+                              <p className="text-sm text-slate-500 mt-1">{entry.comment || "Fără comentarii."}</p>
+                              {entry.action_by_profile && (
+                                  <p className="text-xs text-blue-600 mt-1 font-medium">
+                                      De: {entry.action_by_profile.full_name || "Utilizator"} ({entry.action_by_profile.role})
+                                  </p>
+                              )}
+                          </div>
+                          <time className="text-xs text-slate-400 whitespace-nowrap mt-1 sm:mt-0">
+                              {new Date(entry.created_at).toLocaleString('ro-RO')}
+                          </time>
+                      </div>
+                  </div>
+              ))
+          ) : (
+              <p className="ml-6 text-sm text-slate-400">Nu există istoric disponibil.</p>
+          )}
+      </div>
+  );
 
   const handleOpenSigner = async (file) => {
       try {

@@ -32,3 +32,13 @@ export const STEPPER_STAGES = [
   'review_step3',
   'completed'
 ];
+
+export const DEPARTMENT_LABELS = {
+    'verificare_initiala': 'Verificare Inițială',
+    'verificare_tehnica': 'Verificare Tehnică',
+    'verificare_finala': 'Verificare Finală'
+};
+
+export const getDepartmentLabel = (dept) => {
+    return DEPARTMENT_LABELS[dept] || dept;
+};
