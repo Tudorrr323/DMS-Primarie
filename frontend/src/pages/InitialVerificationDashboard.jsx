@@ -52,7 +52,7 @@ export default function InitialVerificationDashboard() {
 
   const handlePickUp = async (id) => {
     try {
-        await EmployeeService.assignToMe(id, user.id);
+        await EmployeeService.assignToMe(id);
         toast.success("Cerere preluată!");
         fetchData();
     } catch (err) {
@@ -62,7 +62,7 @@ export default function InitialVerificationDashboard() {
 
   const handleAutoAssign = async (id) => {
     try {
-        await EmployeeService.approveAutoAssign(id, user.id, nextDept);
+        await EmployeeService.approveAutoAssign(id, nextDept);
         toast.success("Cerere trimisă automat!");
         fetchData();
     } catch (err) {
@@ -77,7 +77,7 @@ export default function InitialVerificationDashboard() {
         return;
     }
     try {
-        await EmployeeService.approve(id, user.id, targetId);
+        await EmployeeService.approve(id, targetId);
         toast.success("Cerere alocată manual!");
         setAssigningTo(prev => {
             const next = {...prev};
@@ -92,7 +92,7 @@ export default function InitialVerificationDashboard() {
 
   const handleSendToPool = async (id) => {
       try {
-          await EmployeeService.approve(id, user.id, null);
+          await EmployeeService.approve(id, null);
           toast.success("Cerere trimisă în coada comună!");
           fetchData();
       } catch (err) {

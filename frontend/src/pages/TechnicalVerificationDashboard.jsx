@@ -65,7 +65,7 @@ export default function TechnicalVerificationDashboard() {
   const handlePickUp = async (id) => {
     try {
         // Preluarea menține stadiul curent (review_step2), doar asignând utilizatorul
-        await EmployeeService.assignToMe(id, user.id, currentStage);
+        await EmployeeService.assignToMe(id);
         toast.success("Dosar preluat pentru verificare tehnică!");
         fetchData();
     } catch (err) {
@@ -75,7 +75,7 @@ export default function TechnicalVerificationDashboard() {
 
   const handleAutoAssign = async (id) => {
     try {
-        await EmployeeService.approveAutoAssign(id, user.id, nextDept, nextStage, currentStage);
+        await EmployeeService.approveAutoAssign(id, nextDept);
         toast.success("Dosar trimis automat la verificare finală!");
         fetchData();
     } catch (err) {
@@ -90,7 +90,7 @@ export default function TechnicalVerificationDashboard() {
         return;
     }
     try {
-        await EmployeeService.approve(id, user.id, targetId, nextStage, currentStage);
+        await EmployeeService.approve(id, targetId);
         toast.success("Dosar alocat manual!");
         setAssigningTo(prev => {
             const next = {...prev};
@@ -105,7 +105,7 @@ export default function TechnicalVerificationDashboard() {
 
   const handleSendToPool = async (id) => {
       try {
-          await EmployeeService.approve(id, user.id, null, nextStage, currentStage);
+          await EmployeeService.approve(id, null);
           toast.success("Dosar trimis în coada de verificare finală!");
           fetchData();
       } catch (err) {

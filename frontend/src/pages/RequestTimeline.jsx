@@ -238,7 +238,7 @@ export default function RequestTimeline() {
 
   const handleAssignToMe = async () => {
       try {
-          await EmployeeService.assignToMe(id, user.id, request.workflow_stage === 'submitted' ? 'review_step1' : null);
+          await EmployeeService.assignToMe(id);
           toast.success("Dosar preluat cu succes!");
           window.location.reload();
       } catch (err) {
@@ -352,44 +352,30 @@ export default function RequestTimeline() {
 
   const handleAction = async (actionType) => {
     try {
-        const currentStage = request.workflow_stage;
-        let nextStage = '';
-        
-        // Determine next stage based on current
-        if (currentStage === 'review_step1' || currentStage === 'submitted') nextStage = 'review_step2';
-        else if (currentStage === 'review_step2') nextStage = 'review_step3';
-        else if (currentStage === 'review_step3') nextStage = 'completed';
-
         if (actionType === 'finalize') {
-             await EmployeeService.approve(id, user.id, null, 'completed', currentStage);
+             // Aprobare finală (fără assignee)
+             await EmployeeService.approve(id, null);
              toast.success("Dosar finalizat!");
         } else if (actionType === 'auto_assign') {
-            await EmployeeService.approveAutoAssign(id, user.id, nextDept, nextStage, currentStage);
+            await EmployeeService.approveAutoAssign(id, nextDept);
             toast.success("Trimis automat!");
         } else if (actionType === 'manual_assign') {
             if (!selectedColleague) {
                 toast.error("Selectează un coleg!");
                 return;
             }
-            await EmployeeService.approve(id, user.id, selectedColleague, nextStage, currentStage);
+            await EmployeeService.approve(id, selectedColleague);
             toast.success("Alocat manual!");
         } else if (actionType === 'send_to_pool') {
-            await EmployeeService.approve(id, user.id, null, nextStage, currentStage);
+            await EmployeeService.approve(id, null);
             toast.success("Trimis în coada comună!");
         } else if (actionType === 'reject') {
             if (!rejectReason) {
                 toast.error("Motivul este obligatoriu!");
                 return;
             }
-             await supabase.from('documents').update({
-                workflow_stage: 'rejected',
-                rejection_reason: rejectReason,
-                current_assignee: null
-            }).eq('id', id);
-             await supabase.from('workflow_history').insert({
-                document_id: id, action_by: user.id, action_type: 'rejection',
-                from_stage: request.workflow_stage, to_stage: 'rejected', comment: rejectReason
-            });
+            // Folosim noua metodă din service care apelează RPC-ul
+            await EmployeeService.reject(id, rejectReason);
             toast.error("Cerere Refuzată.");
         }
         

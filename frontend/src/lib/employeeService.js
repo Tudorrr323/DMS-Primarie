@@ -15,116 +15,61 @@ export const EmployeeService = {
 
   /**
    * 1. PREIA DOSARUL ("ASSIGN TO ME")
-   * Mută dosarul din "Coadă" în "Dosarele Mele" (review_step1 sau stadiul curent).
+   * Apelează funcția SQL care mută dosarul și scrie în istoric automat.
    */
-  async assignToMe(docId, userId, targetStage = 'review_step1') {
-    // 1. Update Document
-    const { error } = await supabase
-      .from('documents')
-      .update({
-        current_assignee: userId,
-        workflow_stage: targetStage, 
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', docId);
+  async assignToMe(docId, userId) {
+    // Apelăm procedura stocată din baza de date
+    const { error } = await supabase.rpc('assign_to_me', {
+      p_doc_id: docId
+    });
 
     if (error) throw error;
-
-    const stageLabel = WORKFLOW_STAGES[targetStage]?.label || targetStage;
-
-    // 2. Log History
-    await supabase.from('workflow_history').insert({
-      document_id: docId,
-      action_by: userId,
-      action_type: 'stage_change',
-      from_stage: 'submitted', // TODO: Aici ar trebui să luăm stadiul anterior din DB, dar simplificăm momentan
-      to_stage: targetStage,
-      comment: `Preluat manual din coada de așteptare (Etapa: ${stageLabel}).`
-    });
   },
 
   /**
    * 2. APROBĂ DOSARUL (STANDARD / MANUAL)
-   * Mută dosarul la pasul următor.
+   * Apelează SQL pentru a muta dosarul la pasul următor definit în baza de date.
    */
-  async approve(docId, currentUserId, targetAssigneeId = null, nextStage = 'review_step2', currentStage = 'review_step1') {
-    
-    // 1. Update Document
-    const { error } = await supabase
-      .from('documents')
-      .update({
-        workflow_stage: nextStage,
-        current_assignee: targetAssigneeId, // Poate fi NULL (Pool) sau ID (Manual)
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', docId);
+  async approve(docId, targetAssigneeId = null) {
+    // Apelăm procedura stocată 'process_document' cu acțiunea 'approve'
+    // Logica de tranziție (ex: step1 -> step2) este exclusiv în SQL
+    const { error } = await supabase.rpc('process_document', {
+      p_doc_id: docId,
+      p_action: 'approve',
+      p_target_assignee: targetAssigneeId
+    });
 
     if (error) throw error;
+  },
 
-    const stageLabel = WORKFLOW_STAGES[nextStage]?.label || nextStage;
-
-    // 2. Log History
-    await supabase.from('workflow_history').insert({
-      document_id: docId,
-      action_by: currentUserId,
-      action_type: 'stage_change',
-      from_stage: currentStage,
-      to_stage: nextStage,
-      comment: targetAssigneeId 
-        ? `Aprobat și alocat manual unui coleg pentru ${stageLabel}.` 
-        : `Aprobat și trimis la pasul: ${stageLabel}.`
+  /**
+   * 3. RESPINGE DOSARUL
+   * Apelează SQL pentru a marca dosarul ca rejected.
+   */
+  async reject(docId, reason) {
+    const { error } = await supabase.rpc('process_document', {
+      p_doc_id: docId,
+      p_action: 'reject',
+      p_reason: reason
     });
+
+    if (error) throw error;
   },
 
   /**
    * 3. APROBĂ DOSARUL (AUTO-ASSIGN / SMART)
-   * Caută automat colegul cel mai liber din departamentul următor.
+   * Folosește funcția SQL pentru a găsi instant angajatul cel mai liber.
    */
-  async approveAutoAssign(docId, currentUserId, nextDepartment, nextStage = 'review_step2', currentStage = 'review_step1') {
-    // A. Găsim toți angajații din departamentul țintă
-    const { data: employees, error: empError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('role', 'angajat')
-        .eq('department', nextDepartment);
+  async approveAutoAssign(docId, nextDepartment) {
+    // A. Apelăm RPC pentru a găsi ID-ul optim
+    const { data: bestEmployeeId, error: calcError } = await supabase
+        .rpc('get_least_loaded_employee', { p_dept: nextDepartment });
 
-    if (empError) throw empError;
-    if (!employees || employees.length === 0) throw new Error("Nu există angajați în departamentul " + nextDepartment);
+    if (calcError) throw calcError;
+    if (!bestEmployeeId) throw new Error(`Nu există angajați disponibili în departamentul ${nextDepartment}`);
 
-    // B. Pentru fiecare, numărăm task-urile active
-    const employeeIds = employees.map(e => e.id);
-    
-    // Fetch active documents for these employees
-    const { data: docs, error: docError } = await supabase
-        .from('documents')
-        .select('current_assignee')
-        .in('current_assignee', employeeIds)
-        .not('workflow_stage', 'in', '("completed","rejected")'); // Pseudo-code filter logic, fixed below
-
-    if (docError) throw docError;
-
-    // Count workload
-    const workload = {};
-    employeeIds.forEach(id => workload[id] = 0);
-    docs.forEach(d => {
-        if (workload[d.current_assignee] !== undefined) {
-            workload[d.current_assignee]++;
-        }
-    });
-
-    // Find min
-    let bestEmployeeId = employeeIds[0];
-    let minTasks = workload[bestEmployeeId];
-
-    for (const id of employeeIds) {
-        if (workload[id] < minTasks) {
-            minTasks = workload[id];
-            bestEmployeeId = id;
-        }
-    }
-
-    // C. Apelăm funcția standard de approve cu ID-ul găsit
-    await this.approve(docId, currentUserId, bestEmployeeId, nextStage, currentStage);
+    // B. Apelăm funcția standard de approve (care acum folosește RPC-ul process_document)
+    await this.approve(docId, bestEmployeeId);
     
     return bestEmployeeId;
   },
@@ -208,42 +153,19 @@ export const EmployeeService = {
    */
   async addSignature(docId, currentStage) {
     const { data: { user } } = await supabase.auth.getUser();
-    // Generăm un cod unic pentru aspect profesional (ex: SIG-X9A2B...)
+    // Generăm un cod unic vizual (opțional, pentru că DB-ul are ID-uri, dar bun pentru UI)
     const uniqueCode = 'SIG-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+    const signatureText = `Semnat digital de ${user.email} - ID: ${uniqueCode}`;
 
-    // 1. Inserăm în tabela SIGNATURES (Arhiva de semnături)
-    const { error: sigError } = await supabase
-      .from('signatures')
-      .insert({
-        document_id: docId,
-        signed_by: user.id,
-        // Textul oficial care apare pe document
-        signature_text: `Semnat digital de ${user.email} - ID: ${uniqueCode}`,
-        workflow_stage: currentStage // Salvăm la ce pas s-a semnat (ex: review_step2)
-      });
-
-    if (sigError) throw sigError;
-
-    // 2. (Opțional) Actualizăm și metadata pe Documentul Principal
-    // Ca să știm cine a fost ULTIMUL care a semnat
-    await supabase
-      .from('documents')
-      .update({
-        signed_by: user.id, // Ultimul semnatar
-        signature_hash: uniqueCode,
-        updated_at: new Date()
-      })
-      .eq('id', docId);
-
-    // 3. Log în Istoric
-    await supabase.from('workflow_history').insert({
-        document_id: docId,
-        action_by: user.id,
-        action_type: 'signature',
-        from_stage: currentStage, 
-        to_stage: currentStage, // Rămâne în același stadiu
-        comment: `A aplicat semnătura digitală (ID: ${uniqueCode})`
+    // Apelează RPC-ul care face Insert în signatures + Insert în workflow_history
+    // Trimitem explicit p_file_id: null pentru a evita ambiguitatea cu funcția SQL supraincărcată
+    const { error } = await supabase.rpc('sign_document', {
+      p_doc_id: docId,
+      p_signature_text: signatureText,
+      p_file_id: null
     });
+
+    if (error) throw error;
 
     return uniqueCode;
   },
@@ -501,40 +423,21 @@ export const EmployeeService = {
         console.warn("Nu s-a putut șterge fișierul vechi (posibil restricții RLS):", e);
     }
 
-    // 4. Aflăm stadiul curent (ex: review_step3)
-    const { data: docInfo } = await supabase
-        .from('documents')
-        .select('workflow_stage')
-        .eq('id', docId)
-        .single();
-
-    const currentStage = docInfo?.workflow_stage || 'review_step3';
-
-    // 2. Inserăm Semnătura
-    await supabase.from('signatures').insert({
-        document_id: docId,
-        signed_by: user.id,
-        signature_text: `Aprobare Finală - ${signerNameZ} (ID: ${uniqueCode})`,
-        workflow_stage: currentStage // Salvăm stadiul corect
+    // 2. Inregistram Semnatura prin RPC
+    // Aceasta pune si in tabela signatures si in workflow_history (generic)
+    await supabase.rpc('sign_document', {
+        p_doc_id: docId,
+        p_signature_text: `Aprobare Finală - ${signerNameZ} (ID: ${uniqueCode})`,
+        p_file_id: newFileRec.id
     });
 
-    // 3. Inserăm în Istoric (AICI ERA PROBLEMA)
-    await supabase.from('workflow_history').insert({
-        document_id: docId,
-        action_by: user.id,
-        action_type: 'stage_change', // E o schimbare de stadiu (finalizare)
-        from_stage: currentStage,    // <--- FIX: Acum trimitem 'review_step3'
-        to_stage: 'completed',       // <--- Destinația
-        comment: `A contrasemnat certificatul și a finalizat dosarul. (ID: ${uniqueCode})`
+    // 3. Finalizăm Documentul prin RPC (Trece automat la 'completed')
+    // process_document se ocupa de update documents + insert workflow_history (stage change)
+    await supabase.rpc('process_document', {
+        p_doc_id: docId,
+        p_action: 'approve',
+        p_target_assignee: null // Nu mai are assignee la final
     });
-
-    // 4. Marcăm documentul ca finalizat
-    await supabase.from('documents')
-      .update({ 
-          workflow_stage: 'completed',
-          completed_at: new Date().toISOString() // E bine să fie ISO string
-      })
-      .eq('id', docId);
   },
 
   /**
@@ -729,28 +632,13 @@ export const EmployeeService = {
         await supabase.from('signatures').insert(signaturesToRestore);
     }
 
-    // Get current stage for signature record
-    const { data: docInfo } = await supabase
-        .from('documents')
-        .select('workflow_stage')
-        .eq('id', docId)
-        .single();
-
-    // Insert into signatures table (Noua semnătură)
-    await supabase.from('signatures').insert({
-        document_id: docId,
-        file_id: newFile.id,
-        signed_by: user.id,
-        signature_text: `Semnat digital: ${signerName} (ID: ${uniqueCode})`,
-        workflow_stage: docInfo?.workflow_stage || 'unknown'
-    });
-
-    // 8. Log History
-    await supabase.from('workflow_history').insert({
-        document_id: docId,
-        action_by: user.id,
-        action_type: 'signature',
-        comment: `A semnat manual documentul: ${fileData.file_name} (ID: ${uniqueCode})`
+    // Insert into signatures table (Noua semnătură) + History prin RPC
+    const signatureText = `Semnat digital: ${signerName} (ID: ${uniqueCode})`;
+    
+    await supabase.rpc('sign_document', {
+        p_doc_id: docId,
+        p_signature_text: signatureText,
+        p_file_id: newFile.id
     });
 
     return true;

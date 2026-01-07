@@ -279,25 +279,16 @@ export default function AdminDashboard() {
               else if (employee.department === 'verificare_finala') newStage = 'review_step3';
           }
 
-          const updates = { current_assignee: targetEmployee };
-          if (newStage) updates.workflow_stage = newStage;
-
-          const { error } = await supabase
-              .from('documents')
-              .update(updates)
-              .eq('id', reassignId);
+          const { error } = await supabase.rpc('admin_reassign_document', {
+              p_doc_id: reassignId,
+              p_target_user_id: targetEmployee,
+              p_new_stage: newStage,
+              p_comment: `ADMIN: Reasignat către ${employee?.full_name || 'alt funcționar'} (Departament: ${getDepartmentLabel(employee?.department)}).`
+          });
           
           if (error) throw error;
 
-          await supabase.from('workflow_history').insert({
-              document_id: reassignId,
-              action_by: user.id,
-              action_type: 'comment',
-              to_stage: newStage,
-              comment: `ADMIN: Reasignat către ${employee?.full_name || 'alt funcționar'} (Departament: ${getDepartmentLabel(employee?.department)}).`
-          });
-
-          toast.success("Cerere reasignată și mutată la stadiul corespunzător!");
+          toast.success("Cerere reasignată cu succes!");
           setReassignId(null);
           setTargetEmployee('');
           fetchData(); 

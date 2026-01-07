@@ -49,7 +49,7 @@ export default function FinalVerificationDashboard() {
 
   const handlePickUp = async (id) => {
     try {
-        await EmployeeService.assignToMe(id, user.id, currentStage);
+        await EmployeeService.assignToMe(id);
         toast.success("Dosar preluat pentru verificare finală!");
         fetchData();
     } catch (err) {
@@ -59,9 +59,9 @@ export default function FinalVerificationDashboard() {
 
   const handleFinalize = async (id) => {
       try {
-          // Aprobarea aici înseamnă finalizarea cererii (completed)
+          // Aprobarea aici înseamnă finalizarea cererii (SQL-ul știe că după review_step3 urmează completed)
           // targetAssigneeId este null pentru că nu se duce la nimeni altcineva
-          await EmployeeService.approve(id, user.id, null, nextStage, currentStage);
+          await EmployeeService.approve(id, null);
           toast.success("Dosar finalizat cu succes!");
           fetchData();
       } catch (err) {
