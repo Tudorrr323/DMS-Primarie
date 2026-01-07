@@ -8,7 +8,7 @@ export default function RequestList({ title, requests, viewAllLink, renderStatus
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>{title} ({requests.length})</CardTitle>
+        <CardTitle className="text-2xl font-bold">{title} ({requests.length})</CardTitle>
         {requests.length > 3 && (
           <Link to={viewAllLink.to} state={viewAllLink.state}>
             <Button variant="ghost" size="sm">Vezi tot</Button>

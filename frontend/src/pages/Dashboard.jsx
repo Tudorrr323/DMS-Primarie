@@ -18,13 +18,26 @@ export default function Dashboard() {
         setLoading(true);
         const { data, error } = await supabase
           .from('documents')
-          .select('*')
+          .select('*, workflow_history(from_stage, to_stage, action_type)')
           .eq('uploaded_by', user.id)
           .order('created_at', { ascending: false })
           .limit(50); // Fetch a reasonable number of recent requests
 
         if (error) throw error;
-        setRequests(data);
+        
+        // Process requests to add rejectedAtStage info
+        const processedData = data.map(req => {
+            if (req.workflow_stage === 'rejected' && req.workflow_history) {
+                const rejectionEvent = req.workflow_history.find(h => h.to_stage === 'rejected' || h.action_type === 'rejection');
+                return {
+                    ...req,
+                    rejectedAtStage: rejectionEvent?.from_stage || 'submitted'
+                };
+            }
+            return req;
+        });
+
+        setRequests(processedData);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -71,11 +84,13 @@ export default function Dashboard() {
           title="Cereri finalizate"
           requests={completedRequests}
           viewAllLink={{ to: '/requests', state: { status: 'completed' } }}
+          renderStatusStepper={(request) => <RequestStatusStepper currentStatus={request.workflow_stage} />}
         />
         <RequestList 
           title="Cereri refuzate"
           requests={rejectedRequests}
           viewAllLink={{ to: '/requests', state: { status: 'rejected' } }}
+          renderStatusStepper={(request) => <RequestStatusStepper currentStatus={request.workflow_stage} rejectedAtStage={request.rejectedAtStage} />}
         />
       </div>
     </div>
