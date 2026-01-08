@@ -114,12 +114,12 @@ export default function EmployeeDashboard({
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight text-slate-800">{title}</h2>
-        <p className="text-slate-500 mt-1">{description}</p>
+        <h2 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100">{title}</h2>
+        <p className="text-slate-500 dark:text-slate-400 mt-1">{description}</p>
       </div>
 
       {/* TABS HEADER */}
-      <div className="flex border-b border-slate-200 w-full">
+      <div className="flex border-b border-slate-200 dark:border-slate-800 w-full">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
@@ -129,7 +129,7 @@ export default function EmployeeDashboard({
               className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors relative ${
                 isActive 
                   ? 'text-blue-600 border-b-2 border-blue-600' 
-                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
               <tab.icon className="h-4 w-4" />
@@ -147,26 +147,26 @@ export default function EmployeeDashboard({
              <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
            </div>
         ) : requests.length === 0 ? (
-            <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-lg">
-                <p className="text-slate-500">Nu există cereri în această categorie.</p>
+            <div className="text-center py-12 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-lg">
+                <p className="text-slate-500 dark:text-slate-400">Nu există cereri în această categorie.</p>
             </div>
         ) : (
             <div className="grid gap-4">
                 {requests.map((req) => (
-                    <Card key={req.id} className="hover:shadow-md transition-shadow">
+                    <Card key={req.id} className="hover:shadow-md transition-shadow dark:bg-slate-900 dark:border-slate-800">
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <div>
                                 <CardTitle className="text-lg">
-                                    <Link to={`/requests/${req.id}`} className="hover:underline hover:text-blue-600">
+                                    <Link to={`/requests/${req.id}`} className="hover:underline hover:text-blue-600 dark:text-slate-100 dark:hover:text-blue-400">
                                         {req.title}
                                     </Link>
                                 </CardTitle>
-                                <CardDescription>Depus la: {new Date(req.created_at).toLocaleDateString()}</CardDescription>
+                                <CardDescription className="dark:text-slate-400">Depus la: {new Date(req.created_at).toLocaleDateString()}</CardDescription>
                             </div>
                             {activeTab === 'pool' && (
                                 <Button size="sm" onClick={() => handlePickup(req.id)}>
                                     <ArrowRight className="mr-2 h-4 w-4" />
-                                    Pia Cererea
+                                    Preluare
                                 </Button>
                             )}
                             {activeTab === 'mine' && (
@@ -178,8 +178,8 @@ export default function EmployeeDashboard({
                             )}
                         </CardHeader>
                         <CardContent>
-                             <div className="flex items-center gap-4 text-sm text-slate-500 mb-4">
-                                <span>Categorie: <span className="font-medium text-slate-700 capitalize">{req.category.replace('_', ' ')}</span></span>
+                             <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400 mb-4">
+                                <span>Categorie: <span className="font-medium text-slate-700 dark:text-slate-300 capitalize">{req.category.replace('_', ' ')}</span></span>
                              </div>
                              <RequestStatusStepper 
                                 currentStatus={req.workflow_stage} 

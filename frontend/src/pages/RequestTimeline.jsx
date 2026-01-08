@@ -11,6 +11,7 @@ import PDFSigner from '../components/PDFSigner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { Loader2, ArrowLeft, FileText, Download, Send, XCircle, CheckCircle, UserPlus, Users, Upload, Trash2, PenTool, Maximize2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Textarea } from "@/components/ui/textarea";
@@ -431,7 +432,7 @@ export default function RequestTimeline() {
 
   if (signingFile && signingFileUrl) {
       return (
-          <div className="p-4 h-screen bg-slate-50">
+          <div className="p-4 h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
               <PDFSigner 
                 fileUrl={signingFileUrl} 
                 onSave={handleSaveSignature}
@@ -472,13 +473,13 @@ export default function RequestTimeline() {
         </CardHeader>
         <CardContent className="space-y-6">
             <div>
-                <h3 className="text-sm font-medium text-slate-500 mb-1">Descriere</h3>
-                <p className="text-slate-900 bg-slate-50 p-3 rounded-md">{request.description || "Fără descriere."}</p>
+                <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Descriere</h3>
+                <p className="text-slate-900 dark:text-slate-200 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-md border dark:border-slate-800">{request.description || "Fără descriere."}</p>
             </div>
 
             {/* FILES SECTION */}
             <div>
-                <h3 className="text-sm font-medium text-slate-500 mb-2">Fișiere Atașate</h3>
+                <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Fișiere Atașate</h3>
                 {request.document_files && request.document_files.length > 0 ? (
                     <div className="flex flex-col gap-3">
                         {request.document_files.map(file => {
@@ -498,25 +499,25 @@ export default function RequestTimeline() {
                                             !signedByMe && !isCertificate;
 
                             return (
-                                <div key={file.id} className="border rounded-md bg-white hover:bg-slate-50 transition-colors">
+                                <div key={file.id} className="border dark:border-slate-800 rounded-md bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors shadow-sm">
                                     <div className="flex items-center justify-between p-3">
                                         <div className="flex items-center gap-3 overflow-hidden">
-                                            <div className="bg-blue-100 p-2 rounded">
-                                                <FileText className="h-5 w-5 text-blue-600" />
+                                            <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded">
+                                                <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                                             </div>
                                             <div className="truncate">
                                                 <div className="flex items-center gap-2">
-                                                    <p className="text-sm font-medium truncate">{file.file_name}</p>
-                                                    {isSigned && <Badge variant="secondary" className="text-[10px] h-5 px-1 bg-green-100 text-green-700">Semnat</Badge>}
+                                                    <p className="text-sm font-medium truncate dark:text-slate-200">{file.file_name}</p>
+                                                    {isSigned && <Badge variant="secondary" className="text-[10px] h-5 px-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-0">Semnat</Badge>}
                                                 </div>
-                                                <p className="text-xs text-slate-400">{new Date(file.created_at).toLocaleDateString()}</p>
+                                                <p className="text-xs text-slate-400 dark:text-slate-500">{new Date(file.created_at).toLocaleDateString()}</p>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-1">
                                             {canSign && (
                                                 <Button 
                                                     size="sm" 
-                                                    className="bg-indigo-600 hover:bg-indigo-700 h-8 text-xs gap-1"
+                                                    className="bg-indigo-600 hover:bg-indigo-700 h-8 text-xs gap-1 text-white"
                                                     onClick={() => handleOpenSigner(file)}
                                                     title="Aplică semnătura manual"
                                                 >
@@ -535,13 +536,13 @@ export default function RequestTimeline() {
                                                 </Button>
                                             )}
                                             <Button variant="ghost" size="icon" onClick={() => handleDownload(file.file_url, file.file_name)}>
-                                                <Download className="h-4 w-4 text-slate-600" />
+                                                <Download className="h-4 w-4 text-slate-600 dark:text-slate-400" />
                                             </Button>
                                             {canDelete && (
                                                 <Button 
                                                     variant="ghost" 
                                                     size="icon" 
-                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
                                                     onClick={() => handleDeleteFile(file.id, file.file_url, file.file_name)}
                                                 >
                                                     <Trash2 className="h-4 w-4" />
@@ -550,7 +551,7 @@ export default function RequestTimeline() {
                                         </div>
                                     </div>
                                     {isPreviewing && (
-                                        <div className="p-3 border-t bg-slate-50 animate-in slide-in-from-top-2 duration-200">
+                                        <div className="p-3 border-t dark:border-slate-800 bg-slate-50 dark:bg-slate-900 animate-in slide-in-from-top-2 duration-200">
                                             <PDFPreview 
                                                 filePath={file.file_url} 
                                                 fileName={file.file_name} 
@@ -563,7 +564,7 @@ export default function RequestTimeline() {
                         })}
                     </div>
                 ) : (
-                    <p className="text-sm text-slate-400 italic">Niciun fișier atașat.</p>
+                    <p className="text-sm text-slate-400 dark:text-slate-500 italic">Niciun fișier atașat.</p>
                 )}
             </div>
         </CardContent>
@@ -571,13 +572,13 @@ export default function RequestTimeline() {
 
       {/* UNASSIGNED TASK PANEL */}
       {canProcess && isUnassigned && request.workflow_stage !== 'completed' && request.workflow_stage !== 'rejected' && (
-          <Card className="border-blue-200 bg-blue-50/50">
+          <Card className="border-blue-200 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-900/10">
               <CardContent className="p-6 flex items-center justify-between">
                   <div>
-                      <h3 className="font-medium text-blue-900">Acest dosar așteaptă preluarea.</h3>
-                      <p className="text-sm text-blue-700">Ești în departamentul potrivit pentru a procesa această cerere.</p>
+                      <h3 className="font-medium text-blue-900 dark:text-blue-300">Acest dosar așteaptă preluarea.</h3>
+                      <p className="text-sm text-blue-700 dark:text-blue-400">Ești în departamentul potrivit pentru a procesa această cerere.</p>
                   </div>
-                  <Button onClick={handleAssignToMe} className="bg-blue-600 hover:bg-blue-700">
+                  <Button onClick={handleAssignToMe} className="bg-blue-600 hover:bg-blue-700 text-white">
                       Preia Dosarul
                   </Button>
               </CardContent>
@@ -586,86 +587,96 @@ export default function RequestTimeline() {
 
       {/* ACTION PANEL (EMPLOYEE ONLY) */}
       {isEmployee && isAssignedToMe && request.workflow_stage !== 'completed' && request.workflow_stage !== 'rejected' && (
-          <Card className="border-blue-200 bg-blue-50/50">
-              <CardHeader>
-                  <CardTitle className="text-lg text-blue-900">Panou Acțiuni</CardTitle>
+          <Card className="border-blue-200 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-900/10">
+              <CardHeader className="pb-3">
+                  <CardTitle className="text-lg text-blue-900 dark:text-blue-300">Panou Acțiuni</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                  <div className="flex flex-wrap gap-3 items-center">
+              <CardContent className="space-y-6">
+                  {/* Primul rând: Acțiuni de documente */}
+                  <div className="flex flex-wrap gap-3 items-center pb-4 border-b border-blue-100 dark:border-blue-900/30">
                       <input 
                           type="file" 
                           ref={fileInputRef} 
                           className="hidden" 
                           onChange={handleFileUpload} 
                       />
-                      <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                      <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="bg-white dark:bg-slate-900">
                           <Upload className="mr-2 h-4 w-4" /> Încarcă Document
                       </Button>
 
-                      {nextDept ? (
-                          <>
-                              {showSendButtons && (
-                                  <>
-                                      <Button onClick={() => handleAction('auto_assign')} className="bg-emerald-600 hover:bg-emerald-700">
-                                          <Send className="mr-2 h-4 w-4" /> Auto-Trimite
-                                      </Button>
+                      {/* Buton Semnare (Doar pentru Verificare Tehnică și doar dacă nu e semnat deja) */}
+                      {request.workflow_stage === 'review_step2' && !hasCertificate && (
+                          <Button onClick={handleGenerateCertificate} className="bg-blue-700 hover:bg-blue-800 text-white" title="Generează și semnează certificatul înainte de trimitere">
+                              <PenTool className="mr-2 h-4 w-4" /> Generează Certificat
+                          </Button>
+                      )}
+                  </div>
 
-                                      <div className="flex items-center gap-2 border rounded-md p-1 bg-white border-blue-200">
-                                           <Select value={selectedColleague} onValueChange={setSelectedColleague}>
-                                                <SelectTrigger className="h-9 w-[200px]">
-                                                    <SelectValue placeholder="Alocă unui coleg..." />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {colleagues.map(col => (
-                                                        <SelectItem key={col.id} value={col.id}>{col.full_name || col.email}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <Button size="sm" variant="ghost" onClick={() => handleAction('manual_assign')}>
-                                                <UserPlus className="h-4 w-4" />
-                                            </Button>
-                                      </div>
-
-                                      <Button variant="secondary" onClick={() => handleAction('send_to_pool')}>
-                                            <Users className="mr-2 h-4 w-4" /> La Comun
-                                      </Button>
-
-                                      {request.workflow_stage === 'review_step2' && (
-                                          <Button variant="outline" onClick={handleRevokeSignature} className="text-orange-600 border-orange-200 hover:bg-orange-50">
-                                                <XCircle className="mr-2 h-4 w-4" /> Anulează Semnătura
+                  {/* Al doilea rând: Flux de lucru / Trimitere */}
+                  <div className="space-y-3">
+                      <Label className="text-xs font-semibold uppercase tracking-wider text-blue-800/70 dark:text-blue-400/70">Trimite către etapa următoare</Label>
+                      <div className="flex flex-wrap gap-3 items-center">
+                          {nextDept ? (
+                              <>
+                                  {showSendButtons && (
+                                      <>
+                                          <Button onClick={() => handleAction('auto_assign')} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
+                                              <Send className="mr-2 h-4 w-4" /> Auto-Trimite
                                           </Button>
-                                      )}
-                                  </>
-                              )}
 
-                              {/* Buton Semnare (Doar pentru Verificare Tehnică și doar dacă nu e semnat deja) */}
-                              {request.workflow_stage === 'review_step2' && !hasCertificate && (
-                                  <Button onClick={handleGenerateCertificate} className="bg-blue-700 hover:bg-blue-800" title="Generează și semnează certificatul înainte de trimitere">
-                                      <PenTool className="mr-2 h-4 w-4" /> Generează Certificat
-                                  </Button>
-                              )}
-                          </>
-                      ) : (
-                          <Button onClick={handleCounterSign} className="bg-purple-700 hover:bg-purple-800">
-                              <PenTool className="mr-2 h-4 w-4" /> Contrasemnează și Finalizează
+                                          <div className="flex items-center gap-2 border rounded-md p-1 bg-white dark:bg-slate-950 border-blue-200 dark:border-blue-900/50 shadow-sm">
+                                              <Select value={selectedColleague} onValueChange={setSelectedColleague}>
+                                                    <SelectTrigger className="h-8 w-[180px] border-0 focus:ring-0 text-xs">
+                                                        <SelectValue placeholder="Alocă unui coleg..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {colleagues.map(col => (
+                                                            <SelectItem key={col.id} value={col.id}>{col.full_name || col.email}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <Button size="sm" variant="ghost" onClick={() => handleAction('manual_assign')} className="h-8 w-8 p-0">
+                                                    <UserPlus className="h-4 w-4 text-blue-600" />
+                                                </Button>
+                                          </div>
+
+                                          <Button variant="secondary" onClick={() => handleAction('send_to_pool')} className="bg-white dark:bg-slate-800 shadow-sm">
+                                                <Users className="mr-2 h-4 w-4" /> La Comun
+                                          </Button>
+                                      </>
+                                  )}
+                              </>
+                          ) : (
+                              <Button onClick={handleCounterSign} className="bg-purple-700 hover:bg-purple-800 text-white shadow-md">
+                                  <PenTool className="mr-2 h-4 w-4" /> Contrasemnează și Finalizează
+                              </Button>
+                          )}
+                      </div>
+                  </div>
+
+                  {/* Al treilea rând: Acțiuni de corecție / respingere (Zona Roșie) */}
+                  <div className="flex flex-wrap gap-3 items-center pt-4 border-t border-blue-100 dark:border-blue-900/30">
+                      {request.workflow_stage === 'review_step2' && showSendButtons && (
+                          <Button variant="outline" onClick={handleRevokeSignature} className="text-orange-600 border-orange-200 hover:bg-orange-50 dark:hover:bg-orange-950/20 dark:border-orange-900/50">
+                                <XCircle className="mr-2 h-4 w-4" /> Anulează Semnătura
                           </Button>
                       )}
                       
                       {!showRejectInput && (
-                          <Button variant="destructive" onClick={() => setShowRejectInput(true)}>
-                              <XCircle className="mr-2 h-4 w-4" /> Respinge
+                          <Button variant="destructive" onClick={() => setShowRejectInput(true)} className="bg-red-600 hover:bg-red-700 text-white">
+                              <XCircle className="mr-2 h-4 w-4" /> Respinge Cererea
                           </Button>
                       )}
                   </div>
 
                   {showRejectInput && (
-                      <div className="p-4 border border-red-200 bg-red-50 rounded-md space-y-3 animate-in fade-in zoom-in-95 duration-200">
-                          <label className="text-sm font-medium text-red-900">Motivul Respingerii (Obligatoriu):</label>
+                      <div className="p-4 border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10 rounded-md space-y-3 animate-in fade-in zoom-in-95 duration-200">
+                          <label className="text-sm font-medium text-red-900 dark:text-red-300 italic">Motivul Respingerii (Obligatoriu):</label>
                           <Textarea 
-                              placeholder="Explicați de ce respingeți cererea..." 
+                              placeholder="Explicați detaliat de ce respingeți cererea..." 
                               value={rejectReason}
                               onChange={e => setRejectReason(e.target.value)}
-                              className="bg-white"
+                              className="bg-white dark:bg-slate-950 min-h-[100px]"
                           />
                           <div className="flex gap-2 justify-end">
                               <Button variant="ghost" size="sm" onClick={() => setShowRejectInput(false)}>Anulează</Button>
@@ -683,14 +694,14 @@ export default function RequestTimeline() {
               <CardTitle className="text-lg">Istoric Procesare</CardTitle>
           </CardHeader>
           <CardContent>
-              <div className="relative border-l border-slate-200 ml-3 space-y-8 pb-4">
+              <div className="relative border-l border-slate-200 dark:border-slate-800 ml-3 space-y-8 pb-4">
                   {request.workflow_history && request.workflow_history.length > 0 ? (
                       request.workflow_history.map((entry, i) => (
                           <div key={entry.id} className="ml-6 relative">
-                              <div className="absolute -left-[31px] mt-1.5 h-3 w-3 rounded-full border border-white bg-slate-300 ring-4 ring-white"></div>
+                              <div className="absolute -left-[31px] mt-1.5 h-3 w-3 rounded-full border border-white dark:border-slate-900 bg-slate-300 dark:bg-slate-700 ring-4 ring-white dark:ring-slate-950"></div>
                               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start">
                                   <div>
-                                      <p className="text-sm font-medium text-slate-900">
+                                      <p className="text-sm font-medium text-slate-900 dark:text-slate-200">
                                           {entry.action_type === 'stage_change' ? 'Schimbare Status' : 
                                            entry.action_type === 'comment' ? 'Notă Internă' : 
                                            entry.action_type === 'rejection' ? 'Cerere Respinsă' : 
@@ -698,21 +709,21 @@ export default function RequestTimeline() {
                                            entry.action_type === 'file_delete' ? 'Ștergere Fișier' : 
                                            entry.action_type === 'signature' ? 'Dosar Semnat' : 'Acțiune'}
                                       </p>
-                                      <p className="text-sm text-slate-500 mt-1">{entry.comment || "Fără comentarii."}</p>
+                                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{entry.comment || "Fără comentarii."}</p>
                                       {entry.action_by_profile && (
-                                          <p className="text-xs text-blue-600 mt-1 font-medium">
+                                          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
                                               De: {entry.action_by_profile.full_name || "Utilizator"} ({entry.action_by_profile.role})
                                           </p>
                                       )}
                                   </div>
-                                  <time className="text-xs text-slate-400 whitespace-nowrap mt-1 sm:mt-0">
+                                  <time className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap mt-1 sm:mt-0">
                                       {new Date(entry.created_at).toLocaleString('ro-RO')}
                                   </time>
                               </div>
                           </div>
                       ))
                   ) : (
-                      <p className="ml-6 text-sm text-slate-400">Nu există istoric disponibil.</p>
+                      <p className="ml-6 text-sm text-slate-400 dark:text-slate-500">Nu există istoric disponibil.</p>
                   )}
               </div>
           </CardContent>

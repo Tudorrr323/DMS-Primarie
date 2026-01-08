@@ -56,18 +56,18 @@ export default function Register() {
           <p className="text-lg mt-2 text-slate-300">Creează un cont pentru a gestiona documentele eficient.</p>
         </div>
       </div>
-      <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 min-h-screen bg-slate-50">
+      <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
         <div className="mx-auto grid w-[350px] gap-6">
           <div className="grid gap-2 text-center">
-            <h1 className="text-3xl font-bold">Înregistrare</h1>
-            <p className="text-balance text-slate-500">
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Înregistrare</h1>
+            <p className="text-balance text-slate-500 dark:text-slate-400">
               Completează formularul pentru a-ți crea un cont.
             </p>
           </div>
           {success ? (
-            <div className="text-center p-4 bg-green-100 border border-green-200 rounded-lg">
-              <h3 className="text-lg font-semibold text-green-700">Înregistrare reușită!</h3>
-              <p className="text-sm text-slate-600 mt-2">Te rugăm să verifici adresa de email pentru a confirma contul.</p>
+            <div className="text-center p-4 bg-green-100 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-800">
+              <h3 className="text-lg font-semibold text-green-700 dark:text-green-400">Înregistrare reușită!</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-300 mt-2">Te rugăm să verifici adresa de email pentru a confirma contul.</p>
             </div>
           ) : (
             <form onSubmit={handleRegister} className="grid gap-4">
@@ -140,9 +140,9 @@ export default function Register() {
               </Button>
             </form>
           )}
-          <div className="mt-4 text-center text-sm">
+          <div className="mt-4 text-center text-sm text-slate-600 dark:text-slate-400">
             Ai deja un cont?{" "}
-            <Link to="/login" className="underline">
+            <Link to="/login" className="underline hover:text-slate-900 dark:hover:text-slate-200">
               Autentifică-te
             </Link>
           </div>

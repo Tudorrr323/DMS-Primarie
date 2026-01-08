@@ -150,22 +150,22 @@ export default function Requests() {
   return (
     <div>
       <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
-        <h2 className="text-3xl font-bold tracking-tight text-slate-800">Cererile mele</h2>
+        <h2 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100">Cererile mele</h2>
         <Link to="/requests/new">
           <Button className="w-full sm:w-auto"><PlusCircle className="mr-2 h-4 w-4" />Creează o cerere nouă</Button>
         </Link>
       </div>
 
-      <div className="p-3 border rounded-xl bg-slate-50 mb-6 flex flex-wrap items-center gap-2">
+      <div className="p-3 border rounded-xl bg-slate-50 dark:bg-slate-900 mb-6 flex flex-wrap items-center gap-2 transition-colors">
         {/* Search - Flexible */}
         <div className="relative flex-grow min-w-[240px]">
-            <Input name="search" placeholder="Caută după titlu sau descriere..." value={filters.search} onChange={handleInputChange} className="pr-10 bg-white h-9 shadow-sm"/>
+            <Input name="search" placeholder="Caută după titlu sau descriere..." value={filters.search} onChange={handleInputChange} className="pr-10 bg-white dark:bg-slate-950 h-9 shadow-sm transition-colors"/>
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
         </div>
 
         {/* Filters - Tightly packed */}
         <Select value={filters.category || 'all'} onValueChange={(value) => handleFilterChange('category', value)}>
-            <SelectTrigger className="w-full sm:w-[160px] bg-white h-9 shadow-sm text-xs"><SelectValue placeholder="Categorie" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[160px] bg-white dark:bg-slate-950 h-9 shadow-sm text-xs transition-colors"><SelectValue placeholder="Categorie" /></SelectTrigger>
             <SelectContent>
                 <SelectItem value="all">Toate Categoriile</SelectItem>
                 {CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
@@ -173,7 +173,7 @@ export default function Requests() {
         </Select>
 
         <Select value={filters.status || 'all'} onValueChange={(value) => handleFilterChange('status', value)}>
-            <SelectTrigger className="w-full sm:w-[160px] bg-white h-9 shadow-sm text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[160px] bg-white dark:bg-slate-950 h-9 shadow-sm text-xs transition-colors"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
                 <SelectItem value="all">Toate Statusurile</SelectItem>
                 {STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
@@ -181,7 +181,7 @@ export default function Requests() {
         </Select>
 
         <div className="w-full lg:w-auto lg:min-w-[220px]">
-            <DateRangePicker date={filters.date} setDate={handleDateChange} placeholder="Perioadă" className="bg-white h-9 shadow-sm" />
+            <DateRangePicker date={filters.date} setDate={handleDateChange} placeholder="Perioadă" />
         </div>
 
         {/* Sort & Reset - Pushed to the end */}
@@ -189,7 +189,7 @@ export default function Requests() {
             <div className="flex items-center gap-2">
                 <span className="text-[11px] text-slate-400 uppercase font-bold whitespace-nowrap">Sort:</span>
                 <Select value={filters.sort} onValueChange={(value) => handleFilterChange('sort', value)}>
-                    <SelectTrigger className="w-[140px] bg-white h-8 text-xs shadow-sm"><SelectValue placeholder="Sortează" /></SelectTrigger>
+                    <SelectTrigger className="w-[140px] bg-white dark:bg-slate-950 h-8 text-xs shadow-sm transition-colors"><SelectValue placeholder="Sortează" /></SelectTrigger>
                     <SelectContent>{SORT_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                 </Select>
             </div>

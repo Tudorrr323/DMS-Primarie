@@ -34,6 +34,35 @@ const STATUSES = [
     { value: 'rejected', label: 'Refuzată' },
 ];
 
+const SORT_OPTIONS = [
+    { value: 'created_at,desc', label: 'Cele mai noi' },
+    { value: 'created_at,asc', label: 'Cele mai vechi' },
+    { value: 'title,asc', label: 'Titlu (A-Z)' },
+    { value: 'title,desc', label: 'Titlu (Z-A)' },
+];
+
+const scrollbarStyles = `
+  .force-visible-scrollbar {
+      overflow-y: scroll !important;
+  }
+  .force-visible-scrollbar::-webkit-scrollbar {
+      width: 10px;
+      display: block !important;
+  }
+  .force-visible-scrollbar::-webkit-scrollbar-thumb {
+      background-color: #94a3b8;
+      border-radius: 20px;
+      border: 2px solid transparent;
+      background-clip: content-box;
+  }
+  .force-visible-scrollbar::-webkit-scrollbar-track {
+      background-color: transparent;
+  }
+  .dark .force-visible-scrollbar::-webkit-scrollbar-thumb {
+      background-color: #475569;
+  }
+`;
+
 export default function AdminDashboard() {
   const { user } = useAuthContext();
   const onlineUsers = usePresence();
@@ -82,24 +111,6 @@ export default function AdminDashboard() {
 
   const [reassignId, setReassignId] = useState(null);
   const [targetEmployee, setTargetEmployee] = useState('');
-
-  const scrollbarStyles = `
-    .force-visible-scrollbar {
-        overflow-y: scroll !important;
-    }
-    .force-visible-scrollbar::-webkit-scrollbar {
-        width: 14px;
-        display: block !important;
-    }
-    .force-visible-scrollbar::-webkit-scrollbar-thumb {
-        background-color: #94a3b8;
-        border-radius: 7px;
-        border: 3px solid white;
-    }
-    .force-visible-scrollbar::-webkit-scrollbar-track {
-        background-color: white;
-    }
-  `;
 
   // Computed Employees List with Online Status
   const getProcessedEmployees = () => {
@@ -298,7 +309,7 @@ export default function AdminDashboard() {
   };
   
   const handleFilterChange = (name, value) => {
-    setFilters(prev => ({ ...prev, [name]: value }));
+    setFilters(prev => ({ ...prev, [name]: value === 'all' ? '' : value }));
     setCurrentPage(1);
   };
 
@@ -326,52 +337,95 @@ export default function AdminDashboard() {
 
   const renderRequestsContent = (isExpanded = false) => (
       <div className="space-y-6">
-          <div className="p-4 border rounded-lg bg-slate-50">
-            <div className="flex flex-col gap-4">
-                <div className="flex flex-wrap gap-3 items-center">
-                    <div className="flex-1 w-full min-w-[200px] relative order-1 sm:order-none">
-                        <Input name="search" placeholder="Caută titlu/descriere..." value={filters.search} onChange={(e) => handleFilterChange('search', e.target.value)} className="pr-10 bg-white"/>
-                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                    </div>
-                    <div className="w-full sm:w-[180px] order-2 sm:order-none">
-                        <Select value={filters.category || 'all'} onValueChange={(value) => handleFilterChange('category', value)}>
-                            <SelectTrigger className="bg-white"><SelectValue placeholder="Categorie" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Toate Categoriile</SelectItem>
-                                {CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="w-full sm:w-[180px] order-3 sm:order-none">
-                        <Select value={filters.status || 'all'} onValueChange={(value) => handleFilterChange('status', value)}>
-                            <SelectTrigger className="bg-white"><SelectValue placeholder="Status" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Toate Statusurile</SelectItem>
-                                {STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="w-full sm:w-[240px] order-4 sm:order-none">
-                        <DateRangePicker date={filters.date} setDate={handleDateChange} placeholder="Filtrează după perioadă" className="bg-white w-full" />
-                    </div>
-                    <Button onClick={handleResetFilters} variant="ghost" size="sm" className="h-10 w-full sm:w-auto order-5 sm:order-none">
-                        <X className="mr-2 h-4 w-4"/>Resetează
-                    </Button>
-                </div>
-            </div>
+          <div className="p-3 border rounded-xl bg-slate-50 dark:bg-slate-900 flex flex-wrap items-center gap-2 transition-colors">
+              {/* Search - Flexible */}
+              <div className="relative flex-grow min-w-[240px]">
+                  <Input 
+                      name="search" 
+                      type="text"
+                      placeholder="Caută după titlu sau descriere..." 
+                      value={filters.search} 
+                      onChange={(e) => handleFilterChange('search', e.target.value)} 
+                      className="pr-10 bg-white dark:bg-slate-950 h-9 shadow-sm transition-colors"
+                      onKeyDown={(e) => {
+                          if (e.key === 'Enter') e.preventDefault();
+                      }}
+                  />
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              </div>
+
+              {/* Filters - Tightly packed */}
+              <Select value={filters.category || 'all'} onValueChange={(value) => handleFilterChange('category', value)}>
+                  <SelectTrigger className="w-full sm:w-[160px] bg-white dark:bg-slate-950 h-9 shadow-sm text-xs transition-colors">
+                      <SelectValue placeholder="Categorie" />
+                  </SelectTrigger>
+                  <SelectContent>
+                      <SelectItem value="all">Toate Categoriile</SelectItem>
+                      {CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                  </SelectContent>
+              </Select>
+
+              <Select value={filters.status || 'all'} onValueChange={(value) => handleFilterChange('status', value)}>
+                  <SelectTrigger className="w-full sm:w-[160px] bg-white dark:bg-slate-950 h-9 shadow-sm text-xs transition-colors">
+                      <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                      <SelectItem value="all">Toate Statusurile</SelectItem>
+                      {STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                  </SelectContent>
+              </Select>
+
+              <div className="w-full lg:w-auto lg:min-w-[220px]">
+                  <DateRangePicker 
+                      date={filters.date} 
+                      setDate={handleDateChange} 
+                      placeholder="Perioadă" 
+                  />
+              </div>
+
+              {/* Sort & Reset - Pushed to the end */}
+              <div className="flex items-center gap-2 ml-auto w-full lg:w-auto justify-between lg:justify-end border-t lg:border-t-0 pt-2 lg:pt-0 mt-1 lg:mt-0">
+                  <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-400 uppercase font-bold whitespace-nowrap">Sort:</span>
+                      <Select value={filters.sort} onValueChange={(value) => handleFilterChange('sort', value)}>
+                          <SelectTrigger className="w-[140px] bg-white dark:bg-slate-950 h-8 text-xs shadow-sm transition-colors">
+                              <SelectValue placeholder="Sortează" />
+                          </SelectTrigger>
+                          <SelectContent>
+                              {SORT_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                          </SelectContent>
+                      </Select>
+                  </div>
+                  
+                  <Button 
+                      type="button"
+                      onClick={handleResetFilters} 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 text-xs text-slate-500 hover:text-red-600 px-2"
+                  >
+                      <X className="mr-1 h-3 w-3"/>Reset
+                  </Button>
+              </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-4 relative min-h-[300px]">
+              {loading && requests.length > 0 && (
+                  <div className="absolute inset-0 bg-white/50 dark:bg-slate-950/50 z-10 flex items-center justify-center rounded-lg">
+                      <Loader2 className="animate-spin h-8 w-8 text-blue-500" />
+                  </div>
+              )}
+
               {requests.length > 0 ? (
                   requests.map(req => (
-                      <div key={req.id} className="p-4 border rounded-lg bg-white hover:bg-slate-50 transition-colors">
+                      <div key={req.id} className="p-4 border rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                               <div>
-                                  <Link to={`/requests/${req.id}`} className="font-semibold text-slate-900 hover:text-blue-600 hover:underline">
+                                  <Link to={`/requests/${req.id}`} className="font-semibold text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 hover:underline">
                                       {req.title}
                                   </Link>
                                   <div className="flex items-center gap-2 mt-1">
-                                      <span className="text-xs text-slate-500">
+                                      <span className="text-xs text-slate-500 dark:text-slate-400">
                                           {new Date(req.created_at).toLocaleDateString()}
                                       </span>
                                       <Badge variant="outline" className="text-[10px] font-normal">
@@ -382,9 +436,9 @@ export default function AdminDashboard() {
                               
                               <div className="flex items-center gap-4">
                                   <div className="text-right">
-                                      <p className="text-xs font-medium text-slate-500">Asignat la / Procesat de:</p>
+                                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Asignat la / Procesat de:</p>
                                       {req.assignee ? (
-                                          <p className="text-sm font-bold text-slate-800">{req.assignee.full_name || req.assignee.email}</p>
+                                          <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{req.assignee.full_name || req.assignee.email}</p>
                                       ) : (
                                           <p className="text-sm font-bold text-orange-600 italic">
                                               {req.workflow_stage === 'completed' ? 'Finalizat' : 
@@ -393,11 +447,17 @@ export default function AdminDashboard() {
                                       )}
                                   </div>
                                   
+                                  <Link to={`/requests/${req.id}`}>
+                                      <Button variant="outline" size="sm" className="shrink-0">
+                                          Gestionează
+                                      </Button>
+                                  </Link>
+
                                   {!['completed', 'rejected'].includes(req.workflow_stage) && (
                                       reassignId === req.id ? (
                                           <div className="flex items-center gap-2 animate-in slide-in-from-right-5">
                                               <Select value={targetEmployee} onValueChange={setTargetEmployee}>
-                                                  <SelectTrigger className="w-[180px] h-9">
+                                                  <SelectTrigger className="w-[180px] h-9 bg-white dark:bg-slate-950">
                                                       <SelectValue placeholder="Alege..." />
                                                   </SelectTrigger>
                                                   <SelectContent>
@@ -423,7 +483,7 @@ export default function AdminDashboard() {
                                   )}
                               </div>
                           </div>
-                          <div className="mt-4 border-t pt-3">
+                          <div className="mt-4 border-t dark:border-slate-800 pt-3">
                               <RequestStatusStepper 
                                 currentStatus={req.workflow_stage} 
                                 rejectedAtStage={req.rejectedAtStage} 
@@ -455,14 +515,14 @@ export default function AdminDashboard() {
           {activityLog.length > 0 ? (
               <div className="space-y-4">
                   {activityLog.map((log) => (
-                      <div key={log.id} className="flex flex-col sm:flex-row justify-between items-start border-b border-slate-100 pb-3 last:border-0 last:pb-0">
+                      <div key={log.id} className="flex flex-col sm:flex-row justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-3 last:border-0 last:pb-0">
                           <div className="flex gap-3">
                               <div className={`mt-1 h-2 w-2 rounded-full shrink-0 
                                   ${log.action_type === 'rejection' ? 'bg-red-500' : 
-                                    log.action_type === 'signature' ? 'bg-green-500' : 'bg-slate-300'}`} 
+                                    log.action_type === 'signature' ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`} 
                               />
                               <div>
-                                  <p className="text-sm text-slate-800">
+                                  <p className="text-sm text-slate-800 dark:text-slate-200">
                                       <span className="font-semibold">{log.action_by_profile?.full_name || 'Utilizator'}</span> 
                                       {' '}
                                       {log.action_type === 'stage_change' ? 'a schimbat statusul' :
@@ -470,9 +530,9 @@ export default function AdminDashboard() {
                                        log.action_type === 'rejection' ? 'a respins' : 
                                        log.action_type === 'comment' ? 'a comentat' : 'a acționat'}
                                       {' '}
-                                      pe cererea <Link to={`/requests/${log.document_id}`} className="text-blue-600 hover:underline">{log.document?.title || 'Document'}</Link>
+                                      pe cererea <Link to={`/requests/${log.document_id}`} className="text-blue-600 dark:text-blue-400 hover:underline">{log.document?.title || 'Document'}</Link>
                                   </p>
-                                  <p className="text-xs text-slate-500 mt-0.5">
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                                       {(() => {
                                           let readableComment = log.comment || "";
                                           ['verificare_initiala', 'verificare_tehnica', 'verificare_finala'].forEach(key => {
@@ -483,7 +543,7 @@ export default function AdminDashboard() {
                                   </p>
                               </div>
                           </div>
-                          <span className="text-xs text-slate-400 whitespace-nowrap ml-8 sm:ml-0">
+                          <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap ml-8 sm:ml-0">
                               {new Date(log.created_at).toLocaleString('ro-RO')}
                           </span>
                       </div>
@@ -494,11 +554,11 @@ export default function AdminDashboard() {
           )}
 
           {activityTotalPages > 1 && (
-            <div className="flex items-center justify-center gap-4 pt-4 border-t">
+            <div className="flex items-center justify-center gap-4 pt-4 border-t dark:border-slate-800">
                 <Button variant="outline" size="icon" onClick={() => setActivityPage(p => Math.max(1, p - 1))} disabled={activityPage <= 1}>
                     <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="text-sm text-slate-600">Pagina {activityPage} din {activityTotalPages}</span>
+                <span className="text-sm text-slate-600 dark:text-slate-400">Pagina {activityPage} din {activityTotalPages}</span>
                 <Button variant="outline" size="icon" onClick={() => setActivityPage(p => Math.min(activityTotalPages, p + 1))} disabled={activityPage >= activityTotalPages}>
                     <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -521,17 +581,17 @@ export default function AdminDashboard() {
           <div className="space-y-4">
               <div className="space-y-3">
                   {displayedEmps.map((emp) => (
-                      <div key={emp.id} className={`flex items-center gap-3 p-2 rounded border transition-colors ${emp.isOnline ? 'bg-green-50/50 border-green-100' : 'bg-slate-50 border-transparent opacity-70 grayscale-[0.5]'}`}>
-                          <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs ${emp.isOnline ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>
+                      <div key={emp.id} className={`flex items-center gap-3 p-2 rounded border transition-colors ${emp.isOnline ? 'bg-green-50/50 border-green-100 dark:bg-green-950/20 dark:border-green-900/50' : 'bg-slate-50 dark:bg-slate-800/50 border-transparent dark:border-slate-800 opacity-70 grayscale-[0.5]'}`}>
+                          <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs ${emp.isOnline ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400' : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
                               {emp.email?.slice(0, 2).toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
-                              <p className={`text-sm font-medium truncate ${emp.isOnline ? 'text-slate-900' : 'text-slate-500'}`}>
+                              <p className={`text-sm font-medium truncate ${emp.isOnline ? 'text-slate-900 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400'}`}>
                                   {emp.full_name || emp.email}
                               </p>
                               <div className="flex items-center gap-2">
-                                  <span className={`w-1.5 h-1.5 rounded-full ${emp.isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`} />
-                                  <p className="text-xs text-slate-500 truncate">
+                                  <span className={`w-1.5 h-1.5 rounded-full ${emp.isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-400 dark:bg-slate-600'}`} />
+                                  <p className="text-xs text-slate-500 dark:text-slate-500 truncate">
                                       {emp.isOnline ? (
                                           emp.current_path?.includes('/requests/') ? 'Lucrează la dosar' : 'Activ în platformă'
                                       ) : 'Offline'}
@@ -541,18 +601,18 @@ export default function AdminDashboard() {
                       </div>
                   ))}
                   {!isExpanded && allEmps.length > limit && (
-                      <p className="text-xs text-center text-slate-400 pt-2">
+                      <p className="text-xs text-center text-slate-400 dark:text-slate-500 pt-2">
                           + încă {allEmps.length - limit} funcționari
                       </p>
                   )}
               </div>
 
               {isExpanded && totalPages > 1 && (
-                <div className="flex items-center justify-center gap-4 pt-4 border-t">
+                <div className="flex items-center justify-center gap-4 pt-4 border-t dark:border-slate-800">
                     <Button variant="outline" size="icon" onClick={() => setEmployeesPage(p => Math.max(1, p - 1))} disabled={employeesPage <= 1}>
                         <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <span className="text-sm text-slate-600">Pagina {employeesPage} din {totalPages}</span>
+                    <span className="text-sm text-slate-600 dark:text-slate-400">Pagina {employeesPage} din {totalPages}</span>
                     <Button variant="outline" size="icon" onClick={() => setEmployeesPage(p => Math.min(totalPages, p + 1))} disabled={employeesPage >= totalPages}>
                         <ChevronRight className="h-4 w-4" />
                     </Button>
@@ -563,7 +623,11 @@ export default function AdminDashboard() {
   };
 
   if (loading && requests.length === 0) {
-    return <div className="p-10 flex justify-center"><Loader2 className="animate-spin h-8 w-8 text-slate-400" /></div>;
+    return (
+        <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-slate-950">
+            <Loader2 className="animate-spin h-12 w-12 text-blue-500" />
+        </div>
+    );
   }
 
   // MOD VIZUALIZARE EXTINSĂ (Înlocuiește complet dashboard-ul pentru a folosi scroll-ul natural)
@@ -571,8 +635,8 @@ export default function AdminDashboard() {
       return (
         <div className="max-w-7xl mx-auto pb-10 pt-2 animate-in fade-in zoom-in-95 duration-200">
             <style>{scrollbarStyles}</style>
-            <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border mb-6 sticky top-0 z-20">
-                <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+            <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-lg shadow-sm border dark:border-slate-800 mb-6 sticky top-0 z-20">
+                <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                     {expandedSection === 'requests' ? <FileText className="h-6 w-6"/> : 
                      expandedSection === 'activity' ? <Activity className="h-6 w-6"/> : 
                      <UserCog className="h-6 w-6"/>}
@@ -581,12 +645,12 @@ export default function AdminDashboard() {
                      expandedSection === 'activity' ? 'Jurnal Activitate' : 
                      'Listă Completă Funcționari'}
                 </h2>
-                <Button variant="outline" size="icon" onClick={() => setExpandedSection(null)}>
+                <Button type="button" variant="outline" size="icon" onClick={() => setExpandedSection(null)}>
                     <X className="h-6 w-6" />
                 </Button>
             </div>
             
-            <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-8">
+            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm border dark:border-slate-800 p-4 sm:p-8">
                 {expandedSection === 'requests' ? renderRequestsContent(true) : 
                  expandedSection === 'activity' ? renderActivityLogContent(true) :
                  renderEmployeesContent(true)}
@@ -602,77 +666,87 @@ export default function AdminDashboard() {
 
       <div className="flex justify-between items-center">
         <div>
-            <h2 className="text-3xl font-bold tracking-tight text-slate-800">Panou Administrator</h2>
-            <p className="text-slate-500 mt-1">Monitorizare performanță și gestionare flux.</p>
+            <h2 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100">Panou Administrator</h2>
+            <p className="text-slate-500 dark:text-slate-400 mt-1">Monitorizare performanță și gestionare flux.</p>
         </div>
-        <Button onClick={handleManualRefresh} variant="outline" disabled={refreshing}>
+        <Button type="button" onClick={handleManualRefresh} variant="outline" disabled={refreshing}>
             <Clock className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             {refreshing ? 'Se actualizează...' : 'Actualizează'}
         </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
+          <Card className="dark:bg-slate-900 dark:border-slate-800">
               <CardContent className="p-6 flex items-center justify-between">
                   <div>
-                      <p className="text-sm font-medium text-slate-500">Total Cereri</p>
-                      <p className="text-3xl font-bold text-slate-800">{stats.total}</p>
+                      <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Cereri</p>
+                      <p className="text-3xl font-bold text-slate-800 dark:text-slate-100">{stats.total}</p>
                   </div>
-                  <BarChart3 className="h-8 w-8 text-slate-200" />
+                  <BarChart3 className="h-8 w-8 text-slate-200 dark:text-slate-800" />
               </CardContent>
           </Card>
-          <Card>
+          <Card className="dark:bg-slate-900 dark:border-slate-800">
               <CardContent className="p-6 flex items-center justify-between">
                   <div>
-                      <p className="text-sm font-medium text-slate-500">În Lucru</p>
+                      <p className="text-sm font-medium text-slate-500 dark:text-slate-400">În Lucru</p>
                       <p className="text-3xl font-bold text-blue-600">{stats.pending}</p>
                   </div>
-                  <Clock className="h-8 w-8 text-blue-100" />
+                  <Clock className="h-8 w-8 text-blue-100 dark:text-blue-900/30" />
               </CardContent>
           </Card>
-          <Card>
+          <Card className="dark:bg-slate-900 dark:border-slate-800">
               <CardContent className="p-6 flex items-center justify-between">
                   <div>
-                      <p className="text-sm font-medium text-slate-500">Finalizate</p>
+                      <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Finalizate</p>
                       <p className="text-3xl font-bold text-green-600">{stats.completed}</p>
                   </div>
-                  <CheckCircle className="h-8 w-8 text-green-100" />
+                  <CheckCircle className="h-8 w-8 text-green-100 dark:text-green-900/30" />
               </CardContent>
           </Card>
-          <Card>
+          <Card className="dark:bg-slate-900 dark:border-slate-800">
               <CardContent className="p-6 flex items-center justify-between">
                   <div>
-                      <p className="text-sm font-medium text-slate-500">Refuzate</p>
+                      <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Refuzate</p>
                       <p className="text-3xl font-bold text-red-600">{stats.rejected}</p>
                   </div>
-                  <AlertTriangle className="h-8 w-8 text-red-100" />
+                  <AlertTriangle className="h-8 w-8 text-red-100 dark:text-red-900/30" />
               </CardContent>
           </Card>
       </div>
 
       <div className="flex flex-col gap-8">
           
-          <Card>
+          <Card className="dark:bg-slate-900 dark:border-slate-800">
               <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 dark:text-slate-100">
                       <AlertTriangle className="h-5 w-5 text-orange-500" />
                       Timp Mediu (Ore)
                   </CardTitle>
-                  <CardDescription>Analiză performanță pe stadii</CardDescription>
+                  <CardDescription className="dark:text-slate-400">Analiză performanță pe stadii</CardDescription>
               </CardHeader>
               <CardContent className="h-[300px]">
                   {bottlenecks.length > 0 ? (
                       <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={bottlenecks} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
                               <XAxis 
                                 dataKey="name" 
-                                tick={{fontSize: 12}} 
+                                tick={{fontSize: 12, fill: '#94a3b8'}} 
                                 axisLine={false}
                                 tickLine={false}
                               />
-                              <YAxis tick={{fontSize: 12}} axisLine={false} tickLine={false} />
-                              <Tooltip cursor={{fill: '#f1f5f9'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                              <YAxis tick={{fontSize: 12, fill: '#94a3b8'}} axisLine={false} tickLine={false} />
+                              <Tooltip 
+                                cursor={{fill: 'rgba(255,255,255,0.05)'}} 
+                                contentStyle={{
+                                    borderRadius: '8px', 
+                                    border: '1px solid #334155', 
+                                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                                    backgroundColor: '#0f172a',
+                                }} 
+                                labelStyle={{ color: '#f1f5f9', fontWeight: 'bold' }}
+                                itemStyle={{ color: '#f1f5f9' }}
+                              />
                               <Bar dataKey="avgHours" radius={[4, 4, 0, 0]} barSize={60}>
                                 {bottlenecks.map((entry, index) => (
                                   <Cell key={`cell-${index}`} fill={index === 0 ? '#ef4444' : '#3b82f6'} />
@@ -688,14 +762,14 @@ export default function AdminDashboard() {
               </CardContent>
           </Card>
 
-          <Card>
+          <Card className="dark:bg-slate-900 dark:border-slate-800">
               <CardHeader className="flex flex-row items-center justify-between">
                   <div>
-                      <CardTitle>Registru General Cereri</CardTitle>
-                      <CardDescription>Vizualizează, filtrează și gestionează toate cererile.</CardDescription>
+                      <CardTitle className="dark:text-slate-100">Registru General Cereri</CardTitle>
+                      <CardDescription className="dark:text-slate-400">Vizualizează, filtrează și gestionează toate cererile.</CardDescription>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => setExpandedSection('requests')}>
-                      <Maximize2 className="h-4 w-4 text-slate-500" />
+                  <Button type="button" variant="ghost" size="icon" onClick={() => setExpandedSection('requests')}>
+                      <Maximize2 className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                   </Button>
               </CardHeader>
               <CardContent>
@@ -705,17 +779,17 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <Card className="lg:col-span-2 flex flex-col">
+      <Card className="lg:col-span-2 flex flex-col dark:bg-slate-900 dark:border-slate-800">
           <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 dark:text-slate-100">
                       <Activity className="h-5 w-5 text-blue-600" />
                       Activitate Recentă în Sistem
                   </CardTitle>
-                  <CardDescription>Jurnalul global al ultimelor acțiuni efectuate.</CardDescription>
+                  <CardDescription className="dark:text-slate-400">Jurnalul global al ultimelor acțiuni efectuate.</CardDescription>
               </div>
-              <Button variant="ghost" size="icon" onClick={() => setExpandedSection('activity')}>
-                  <Maximize2 className="h-4 w-4 text-slate-500" />
+              <Button type="button" variant="ghost" size="icon" onClick={() => setExpandedSection('activity')}>
+                  <Maximize2 className="h-4 w-4 text-slate-500 dark:text-slate-400" />
               </Button>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto min-h-0 pr-2 force-visible-scrollbar">
@@ -724,20 +798,20 @@ export default function AdminDashboard() {
       </Card>
 
       {/* ONLINE EMPLOYEES WIDGET */}
-      <Card className="lg:col-span-1 h-full flex flex-col">
+      <Card className="lg:col-span-1 h-full flex flex-col dark:bg-slate-900 dark:border-slate-800">
           <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 dark:text-slate-100">
                       <span className="relative flex h-3 w-3">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                       </span>
                       Funcționari
                   </CardTitle>
-                  <CardDescription>Status echipă în timp real</CardDescription>
+                  <CardDescription className="dark:text-slate-400">Status echipă în timp real</CardDescription>
               </div>
-              <Button variant="ghost" size="icon" onClick={() => setExpandedSection('employees')}>
-                  <Maximize2 className="h-4 w-4 text-slate-500" />
+              <Button type="button" variant="ghost" size="icon" onClick={() => setExpandedSection('employees')}>
+                  <Maximize2 className="h-4 w-4 text-slate-500 dark:text-slate-400" />
               </Button>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto min-h-0 pr-2 force-visible-scrollbar">

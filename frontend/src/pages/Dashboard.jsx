@@ -69,8 +69,8 @@ export default function Dashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight text-slate-800">Meniu Principal</h2> {/* Changed heading */}
-        <p className="text-slate-500 mt-1">Vizualizează statusul ultimelor tale cereri.</p>
+        <h2 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100">Meniu Principal</h2> {/* Changed heading */}
+        <p className="text-slate-500 dark:text-slate-400 mt-1">Vizualizează statusul ultimelor tale cereri.</p>
       </div>
       
       <div className="space-y-6">

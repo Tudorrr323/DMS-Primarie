@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useAuthContext } from '../contexts/AuthContext';
-import { Loader2, AlertCircle, X } from 'lucide-react'; // Import X icon for removing files
+import { Loader2, AlertCircle, X, Upload, FileText } from 'lucide-react'; // Correct import
 
 const CATEGORIES = [
   { value: 'cerere_cetatean', label: 'Cerere Cetățean' },
@@ -153,71 +153,94 @@ export default function CreateRequest() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <Card>
+      <Card className="dark:bg-slate-900 dark:border-slate-800 shadow-xl">
         <CardHeader>
-          <CardTitle className="text-3xl font-bold mb-2">Depune o Cerere Nouă</CardTitle>
-          <CardDescription>Completează formularul de mai jos pentru a iniția o nouă cerere și a atașa documentele necesare.</CardDescription>
+          <CardTitle className="text-3xl font-bold mb-2 dark:text-slate-100">Depune o Cerere Nouă</CardTitle>
+          <CardDescription className="dark:text-slate-400">Completează formularul de mai jos pentru a iniția o nouă cerere și a atașa documentele necesare.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid gap-2">
-              <Label htmlFor="title">Subiect / Titlu Cerere</Label>
-              <Input name="title" type="text" required placeholder="Ex: Autorizație construcție gard" value={formData.title} onChange={handleChange} />
+              <Label htmlFor="title" className="dark:text-slate-200">Subiect / Titlu Cerere</Label>
+              <Input name="title" type="text" required placeholder="Ex: Autorizație construcție gard" value={formData.title} onChange={handleChange} className="bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500" />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="category">Departament Vizat</Label>
+              <Label htmlFor="category" className="dark:text-slate-200">Departament Vizat</Label>
               <Select onValueChange={handleSelectChange} defaultValue={formData.category}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Alege o categorie" /></SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((cat) => (<SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>))}
+                <SelectTrigger className="w-full bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"><SelectValue placeholder="Alege o categorie" /></SelectTrigger>
+                <SelectContent className="dark:bg-slate-950 dark:border-slate-800">
+                  {CATEGORIES.map((cat) => (<SelectItem key={cat.value} value={cat.value} className="dark:text-slate-200 focus:dark:bg-slate-800">{cat.label}</SelectItem>))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-500 mt-1">Selectați departamentul corect pentru o procesare rapidă.</p>
+              <p className="text-xs text-gray-500 dark:text-slate-500 mt-1">Selectați departamentul corect pentru o procesare rapidă.</p>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="description">Descriere Detaliată</Label>
-              <Textarea name="description" required rows="5" placeholder="Descrieți solicitarea dumneavoastră..." value={formData.description} onChange={handleChange} />
+              <Label htmlFor="description" className="dark:text-slate-200">Descriere Detaliată</Label>
+              <Textarea name="description" required rows="5" placeholder="Descrieți solicitarea dumneavoastră..." value={formData.description} onChange={handleChange} className="bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500" />
             </div>
-            <div className="grid gap-2 p-4 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 transition">
-              <Label htmlFor="files" className="cursor-pointer">Documente Atașate (PDF, DOCX, Imagini, max 10MB)</Label>
-              <Input
-                id="files"
-                type="file"
-                multiple
-                onChange={handleFileChange}
-                className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-                ref={fileInputRef} // Attach ref here
-              />
-              <div className="mt-2 text-sm text-gray-600">
-                {formData.files.length > 0 ? (
+            <div className="grid gap-2">
+              <Label className="dark:text-slate-200 mb-1">Documente Atașate (PDF, DOCX, Imagini, max 10MB)</Label>
+              <div 
+                onClick={() => fileInputRef.current?.click()}
+                className="group relative border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-xl p-8 bg-gray-50/50 dark:bg-slate-900/30 hover:bg-gray-100 dark:hover:bg-slate-900/50 hover:border-blue-400 dark:hover:border-blue-500/50 transition-all cursor-pointer text-center"
+              >
+                <Input
+                  id="files"
+                  type="file"
+                  multiple
+                  onChange={handleFileChange}
+                  className="hidden"
+                  ref={fileInputRef}
+                />
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <div className="p-3 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">
+                    <Upload className="h-6 w-6" />
+                  </div>
                   <div className="space-y-1">
-                    {formData.files.map((file, index) => (
-                      <div key={index} className="flex items-center justify-between bg-gray-100 p-2 rounded-md">
-                        <span className="truncate">{file.name}</span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveFile(file)}
-                          className="h-6 w-6 p-0"
-                        >
-                          <X className="h-3 w-3 text-red-500" />
-                        </Button>
-                      </div>
-                    ))}
+                    <p className="text-sm font-medium dark:text-slate-200">Apasă pentru a încărca sau trage fișierele aici</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-500">Puteți selecta mai multe documente simultan</p>
                   </div>
-                ) : (
-                  <span>Puteți selecta mai multe fișiere</span>
-                )}
-                {fileError && (
-                  <div className="mt-2 text-red-600 flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4" />
-                    <span>{fileError}</span>
-                  </div>
-                )}
+                </div>
               </div>
+
+              {formData.files.length > 0 && (
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  {formData.files.map((file, index) => (
+                    <div key={index} className="flex items-center justify-between bg-white dark:bg-slate-900 p-3 rounded-lg border border-gray-200 dark:border-slate-800 shadow-sm group">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="p-2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                          <FileText className="h-4 w-4" />
+                        </div>
+                        <div className="truncate">
+                          <p className="text-sm font-medium dark:text-slate-200 truncate">{file.name}</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase">{(file.size / 1024).toFixed(0)} KB</p>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveFile(file);
+                        }}
+                        className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {fileError && (
+                <div className="mt-2 text-red-600 dark:text-red-400 flex items-center gap-2 bg-red-50 dark:bg-red-900/10 p-2 rounded-md border border-red-100 dark:border-red-900/20">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="text-xs font-medium">{fileError}</span>
+                </div>
+              )}
             </div>
-            <Button type="submit" disabled={loading} className="w-full">
+            <Button type="submit" disabled={loading} className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-700">
               {loading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...</>) : ('Trimite Solicitarea')}
             </Button>
           </form>

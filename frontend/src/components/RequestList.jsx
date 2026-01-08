@@ -19,10 +19,10 @@ export default function RequestList({ title, requests, viewAllLink, renderStatus
         {limitedRequests.length > 0 ? (
           <div className="grid grid-cols-1 gap-4">
             {limitedRequests.map(request => (
-                <Link key={request.id} to={`/requests/${request.id}`} className="flex flex-col p-3 rounded-md border border-transparent hover:border-slate-200 hover:bg-slate-50 transition-all">
+                <Link key={request.id} to={`/requests/${request.id}`} className="flex flex-col p-3 rounded-md border border-transparent hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
                     <div className="flex items-center justify-between">
-                        <p className="font-medium text-slate-900 truncate">{request.title}</p>
-                        <span className="text-xs text-slate-500">{new Date(request.created_at).toLocaleDateString()}</span>
+                        <p className="font-medium text-slate-900 dark:text-slate-100 truncate">{request.title}</p>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">{new Date(request.created_at).toLocaleDateString()}</span>
                     </div>
                     {renderStatusStepper && (
                         <div className="mt-2">
@@ -33,7 +33,7 @@ export default function RequestList({ title, requests, viewAllLink, renderStatus
             ))}
           </div>
         ) : (
-          <p className="text-sm text-center text-slate-500 py-4">Nicio cerere în această categorie.</p>
+          <p className="text-sm text-center text-slate-500 dark:text-slate-400 py-4">Nicio cerere în această categorie.</p>
         )}
       </CardContent>
     </Card>

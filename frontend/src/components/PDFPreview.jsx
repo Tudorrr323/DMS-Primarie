@@ -85,23 +85,23 @@ export default function PDFPreview({ filePath, fileName, onClose }) {
   if (!fileName?.toLowerCase().endsWith('.pdf')) return null;
 
   return (
-    <div className="flex flex-col h-[500px] sm:h-[600px] w-full border rounded-md bg-slate-100 overflow-hidden shadow-sm mt-4 max-w-full">
+    <div className="flex flex-col h-[500px] sm:h-[600px] w-full border dark:border-slate-800 rounded-md bg-slate-100 dark:bg-slate-950 overflow-hidden shadow-sm mt-4 max-w-full">
         {/* HEADER TOOLBAR */}
-        <div className="flex flex-wrap items-center justify-between p-2 bg-white border-b shadow-sm z-10 shrink-0 gap-2">
+        <div className="flex flex-wrap items-center justify-between p-2 bg-white dark:bg-slate-900 border-b dark:border-slate-800 shadow-sm z-10 shrink-0 gap-2">
             <div className="flex items-center gap-2 min-w-0">
-                <span className="font-semibold text-xs sm:text-sm truncate max-w-[120px] sm:max-w-[200px] ml-2">{fileName}</span>
-                {numPages && <span className="text-xs text-slate-500 whitespace-nowrap">({pageNumber} / {numPages})</span>}
+                <span className="font-semibold text-xs sm:text-sm truncate max-w-[120px] sm:max-w-[200px] ml-2 dark:text-slate-200">{fileName}</span>
+                {numPages && <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">({pageNumber} / {numPages})</span>}
             </div>
             
             <div className="flex items-center gap-1 ml-auto">
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={zoomOut} disabled={scale <= 0.6 || loading}>
+                <Button variant="ghost" size="icon" className="h-8 w-8 dark:hover:bg-slate-800" onClick={zoomOut} disabled={scale <= 0.6 || loading}>
                     <ZoomOut className="h-4 w-4" />
                 </Button>
-                <span className="text-xs font-mono w-8 sm:w-12 text-center hidden xs:block">{Math.round(scale * 100)}%</span>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={zoomIn} disabled={scale >= 3.0 || loading}>
+                <span className="text-xs font-mono w-8 sm:w-12 text-center hidden xs:block dark:text-slate-300">{Math.round(scale * 100)}%</span>
+                <Button variant="ghost" size="icon" className="h-8 w-8 dark:hover:bg-slate-800" onClick={zoomIn} disabled={scale >= 3.0 || loading}>
                     <ZoomIn className="h-4 w-4" />
                 </Button>
-                <div className="w-px h-4 sm:h-6 bg-slate-200 mx-1 sm:mx-2"></div>
+                <div className="w-px h-4 sm:h-6 bg-slate-200 dark:bg-slate-700 mx-1 sm:mx-2"></div>
                 <Button variant="outline" size="sm" className="h-8 w-8 px-0" onClick={previousPage} disabled={pageNumber <= 1 || loading}>
                     <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -109,7 +109,7 @@ export default function PDFPreview({ filePath, fileName, onClose }) {
                     <ChevronRight className="h-4 w-4" />
                 </Button>
                 {onClose && (
-                    <Button variant="ghost" size="icon" className="ml-1 sm:ml-2 h-8 w-8 text-slate-500 hover:bg-slate-100" onClick={onClose}>
+                    <Button variant="ghost" size="icon" className="ml-1 sm:ml-2 h-8 w-8 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={onClose}>
                         <X className="h-5 w-5" />
                     </Button>
                 )}
@@ -117,12 +117,12 @@ export default function PDFPreview({ filePath, fileName, onClose }) {
         </div>
 
         {/* PDF VIEWER BODY */}
-        <div className="flex-1 overflow-auto flex justify-center p-2 sm:p-4 bg-slate-200 scrollbar-thin scrollbar-thumb-slate-400" ref={containerRef}>
+        <div className="flex-1 overflow-auto flex justify-center p-2 sm:p-4 bg-slate-200 dark:bg-slate-800 scrollbar-thin scrollbar-thumb-slate-400 dark:scrollbar-thumb-slate-600" ref={containerRef}>
             {error ? (
-                <div className="flex flex-col items-center justify-center h-full text-red-500 p-8 text-center bg-white rounded-lg shadow-sm m-auto max-w-md">
+                <div className="flex flex-col items-center justify-center h-full text-red-500 p-8 text-center bg-white dark:bg-slate-900 rounded-lg shadow-sm m-auto max-w-md border dark:border-slate-800">
                     <AlertCircle className="h-12 w-12 mb-4" />
                     <p className="font-semibold text-lg">Eroare la încărcarea PDF-ului</p>
-                    <p className="text-sm mt-2 text-slate-600">{error}</p>
+                    <p className="text-sm mt-2 text-slate-600 dark:text-slate-400">{error}</p>
                     {onClose && <Button variant="outline" className="mt-6" onClick={onClose}>Închide</Button>}
                 </div>
             ) : blobUrl ? (
@@ -132,11 +132,11 @@ export default function PDFPreview({ filePath, fileName, onClose }) {
                     loading={
                         <div className="flex flex-col items-center justify-center h-full gap-2">
                             <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                            <span className="text-sm text-slate-500">Se încarcă documentul...</span>
+                            <span className="text-sm text-slate-500 dark:text-slate-400">Se încarcă documentul...</span>
                         </div>
                     }
                     error={
-                        <div className="flex flex-col items-center justify-center h-full text-red-500 p-8 text-center bg-white rounded-lg shadow-sm">
+                        <div className="flex flex-col items-center justify-center h-full text-red-500 p-8 text-center bg-white dark:bg-slate-900 rounded-lg shadow-sm border dark:border-slate-800">
                             <p className="font-semibold">Eroare la redarea PDF-ului.</p>
                             <p className="text-sm mt-1">Fișierul ar putea fi corupt sau într-un format neacceptat.</p>
                         </div>
@@ -160,7 +160,7 @@ export default function PDFPreview({ filePath, fileName, onClose }) {
             ) : (
                 <div className="flex flex-col items-center justify-center h-full gap-2">
                     <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                    <span className="text-sm text-slate-500">Se descarcă fișierul...</span>
+                    <span className="text-sm text-slate-500 dark:text-slate-400">Se descarcă fișierul...</span>
                 </div>
             )}
         </div>

@@ -58,11 +58,11 @@ export default function Login() {
           <p className="text-lg mt-2 text-slate-300">Managementul Documentelor pentru o Administrație Eficientă</p>
         </div>
       </div>
-      <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 min-h-screen bg-slate-50">
+      <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
         <div className="mx-auto grid w-[350px] gap-6">
           <div className="grid gap-2 text-center">
-            <h1 className="text-3xl font-bold">Autentificare</h1>
-            <p className="text-balance text-slate-500">
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Autentificare</h1>
+            <p className="text-balance text-slate-500 dark:text-slate-400">
               Introdu datele pentru a accesa platforma.
             </p>
           </div>
@@ -78,35 +78,43 @@ export default function Login() {
                 required
               />
             </div>
-            <div className="grid gap-2 relative">
-              <div className="flex items-center">
-                <Label htmlFor="password">Parolă</Label>
+            <div className="grid gap-2">
+              <Label htmlFor="password">Parolă</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
               </div>
-              <Input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute bottom-1 right-1 h-7 w-7"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
+              <div className="flex justify-end">
+                <Link
+                  to="/forgot-password"
+                  className="text-xs underline-offset-4 hover:underline text-slate-500 dark:text-slate-400"
+                >
+                  Ai uitat parola?
+                </Link>
+              </div>
             </div>
             {error && <p className="text-red-500 text-sm">{error}</p>}
             <Button type="submit" className="w-full">
               Intră în cont
             </Button>
           </form>
-          <div className="mt-4 text-center text-sm">
+          <div className="mt-4 text-center text-sm text-slate-600 dark:text-slate-400">
             Nu ai cont?{" "}
-            <Link to="/register" className="underline">
+            <Link to="/register" className="underline hover:text-slate-900 dark:hover:text-slate-200">
               Înregistrează-te
             </Link>
           </div>
