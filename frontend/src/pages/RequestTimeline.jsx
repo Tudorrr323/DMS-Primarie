@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Loader2, ArrowLeft, FileText, Download, Send, XCircle, CheckCircle, UserPlus, Users, Upload, Trash2, PenTool, Maximize2, X } from 'lucide-react';
+import { Loader2, ArrowLeft, FileText, Download, Send, XCircle, CheckCircle, UserPlus, Users, Upload, Trash2, PenTool, Maximize2, X, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -530,9 +530,11 @@ export default function RequestTimeline() {
                                                     variant={isPreviewing ? "secondary" : "outline"} 
                                                     size="sm" 
                                                     onClick={() => setPreviewFileId(isPreviewing ? null : file.id)}
-                                                    className="gap-2"
+                                                    className="gap-2 px-2 sm:px-3"
+                                                    title={isPreviewing ? 'Ascunde' : 'Previzualizare'}
                                                 >
-                                                    {isPreviewing ? 'Ascunde' : 'Previzualizare'}
+                                                    {isPreviewing ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                                    <span className="hidden sm:inline">{isPreviewing ? 'Ascunde' : 'Previzualizare'}</span>
                                                 </Button>
                                             )}
                                             <Button variant="ghost" size="icon" onClick={() => handleDownload(file.file_url, file.file_name)}>

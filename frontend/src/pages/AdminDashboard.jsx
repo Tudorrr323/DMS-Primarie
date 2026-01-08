@@ -263,7 +263,10 @@ export default function AdminDashboard() {
   };
 
   const computeBottlenecks = (docs) => {
+      const stagesToTrack = ['review_step1', 'review_step2', 'review_step3'];
       const stageDurations = {}; 
+      
+      stagesToTrack.forEach(s => stageDurations[s] = []);
       
       docs.forEach(doc => {
           if (!doc.workflow_history || doc.workflow_history.length < 2) return;
@@ -277,19 +280,21 @@ export default function AdminDashboard() {
                   const durationMs = new Date(next.created_at) - new Date(current.created_at);
                   const durationHours = durationMs / (1000 * 60 * 60);
                   
-                  if (!stageDurations[current.to_stage]) stageDurations[current.to_stage] = [];
-                  stageDurations[current.to_stage].push(durationHours);
+                  if (stageDurations[current.to_stage]) {
+                      stageDurations[current.to_stage].push(durationHours);
+                  }
               }
           }
       });
 
-      const avgDurations = Object.entries(stageDurations).map(([stage, durations]) => {
-          const avg = durations.reduce((a, b) => a + b, 0) / durations.length;
+      const avgDurations = stagesToTrack.map(stage => {
+          const durations = stageDurations[stage];
+          const avg = durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : 0;
           return { 
               name: WORKFLOW_STAGES[stage]?.label || stage, 
               avgHours: parseFloat(avg.toFixed(1)) 
           };
-      }).sort((a, b) => b.avgHours - a.avgHours);
+      });
 
       setBottlenecks(avgDurations);
   };
@@ -764,9 +769,16 @@ export default function AdminDashboard() {
                                 itemStyle={{ color: '#f1f5f9' }}
                               />
                               <Bar dataKey="avgHours" radius={[4, 4, 0, 0]} barSize={60}>
-                                {bottlenecks.map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={index === 0 ? '#ef4444' : '#3b82f6'} />
-                                ))}
+                                {bottlenecks.map((entry, index) => {
+                                  const maxHours = Math.max(...bottlenecks.map(b => b.avgHours));
+                                  const isMax = entry.avgHours > 0 && entry.avgHours === maxHours;
+                                  return (
+                                    <Cell 
+                                      key={`cell-${index}`} 
+                                      fill={isMax ? '#ef4444' : '#3b82f6'} 
+                                    />
+                                  );
+                                })}
                               </Bar>
                           </BarChart>
                       </ResponsiveContainer>
