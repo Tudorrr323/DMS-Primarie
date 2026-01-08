@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../contexts/AuthContext';
 import { Loader2, UserCog, Clock, AlertTriangle, CheckCircle, BarChart3, Search, X, ChevronLeft, ChevronRight, Activity, Maximize2, FileText, User } from 'lucide-react';
@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { Link, useSearchParams } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { usePresence } from '../hooks/usePresence';
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 
 const ITEMS_PER_PAGE = 6;
 
@@ -130,15 +131,7 @@ export default function AdminDashboard() {
       });
   };
 
-  useEffect(() => {
-    fetchData();
-  }, [user, filters, currentPage]);
-
-  useEffect(() => {
-    fetchActivityLog(activityPage);
-  }, [activityPage, expandedSection]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
@@ -196,10 +189,10 @@ export default function AdminDashboard() {
         setRequests(processedDocs);
         setTotalPages(Math.ceil(count / ITEMS_PER_PAGE));
 
-        if (employees.length === 0) {
-            const { data: emps } = await supabase.from('profiles').select('*').eq('role', 'angajat');
-            if (emps) setEmployees(emps);
-        }
+        // Note: employees state check removed from here to avoid dependency loop if possible, 
+        // or we keep it but need to include employees in dependency. 
+        // Ideally we fetch employees once separately.
+        // For now, keeping logic but relying on user/filters/currentPage changes.
 
         if (currentPage === 1 && !filters.search) {
              fetchGlobalStats();
@@ -211,7 +204,30 @@ export default function AdminDashboard() {
     } finally {
         setLoading(false);
     }
-  };
+  }, [user, filters, currentPage]);
+
+  // Initial fetch for employees only once
+  useEffect(() => {
+      const fetchEmployees = async () => {
+        if (employees.length === 0 && user) {
+            const { data: emps } = await supabase.from('profiles').select('*').eq('role', 'angajat');
+            if (emps) setEmployees(emps);
+        }
+      };
+      fetchEmployees();
+  }, [user]); // Removed employees.length dependency to avoid loop, just on user mount
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // ACTIVATE REAL-TIME UPDATES
+  useRealtimeSubscription('documents', fetchData);
+  useRealtimeSubscription('workflow_history', () => fetchActivityLog(activityPage)); // Also update activity log live
+
+  useEffect(() => {
+    fetchActivityLog(activityPage);
+  }, [activityPage, expandedSection]);
 
   const fetchGlobalStats = async () => {
       const { data: allDocs } = await supabase.from('documents').select('workflow_stage, created_at, workflow_history(created_at, from_stage, to_stage)');

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -112,6 +113,9 @@ export default function Requests() {
   useEffect(() => {
     fetchRequests();
   }, [fetchRequests]);
+
+  // ACTIVATE REAL-TIME UPDATES
+  useRealtimeSubscription('documents', fetchRequests);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;

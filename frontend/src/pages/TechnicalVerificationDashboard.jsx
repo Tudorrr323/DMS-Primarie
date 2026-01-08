@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthContext } from '../contexts/AuthContext';
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { EmployeeService } from '../lib/employeeService';
 import { getWorkflowStageInfo } from '../lib/workflow-utils';
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,9 @@ export default function TechnicalVerificationDashboard() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // ACTIVATE REAL-TIME UPDATES
+  useRealtimeSubscription('documents', fetchData);
 
   const handlePickUp = async (id) => {
     try {
