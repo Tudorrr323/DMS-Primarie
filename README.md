@@ -108,7 +108,7 @@ Pentru a testa fluxul complet, utilizați următoarele conturi predefinite (sau 
 
 ### 3. Rol: Cetățean
 *   **Email:** `craciunclaudiu796@gmail.com`
-*   **Parolă:** `123456`
+*   **Parolă:** `1234567`
 *   **Acces:** Depunere cereri, vizualizare status propriu, descărcare documente.
 
 ---
