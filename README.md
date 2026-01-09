@@ -98,17 +98,17 @@ Pentru a testa fluxul complet, utilizați următoarele conturi predefinite (sau 
 
 ### 1. Rol: Admin
 *   **Email:** `admin@primarie.ro`
-*   **Parolă:** `password`
+*   **Parolă:** `password123`
 *   **Acces:** Dashboard general, statistici, re-asignare sarcini, loguri de activitate.
 
 ### 2. Rol: Funcționari (Pe departamente)
-*   **Verificare Inițială:** `initial@primarie.ro` (Parola: `password`)
-*   **Verificare Tehnică:** `tehnic@primarie.ro` (Parola: `password`)
-*   **Verificare Finală:** `final@primarie.ro` (Parola: `password`)
+*   **Verificare Inițială:** `x1@primarie.ro` (Parola: `password123`)
+*   **Verificare Tehnică:** `y1@primarie.ro` (Parola: `password123`)
+*   **Verificare Finală:** `z1@primarie.ro` (Parola: `password123`)
 
 ### 3. Rol: Cetățean
-*   **Email:** `cetatean@gmail.com`
-*   **Parolă:** `password`
+*   **Email:** `craciunclaudiu796@gmail.com`
+*   **Parolă:** `1234567`
 *   **Acces:** Depunere cereri, vizualizare status propriu, descărcare documente.
 
 ---
