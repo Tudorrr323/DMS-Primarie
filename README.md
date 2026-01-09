@@ -145,4 +145,7 @@ Pentru a testa fluxul complet, utilizați următoarele conturi predefinite (sau 
 <img width="1920" height="1080" alt="Screenshot (32)" src="https://github.com/user-attachments/assets/c48e0751-e373-48ae-bf7a-c02a5db9f2eb" />
 <img width="1920" height="1080" alt="Screenshot (33)" src="https://github.com/user-attachments/assets/31f4a7a4-885e-4ae4-8c08-c75354f5ffd1" />
 <img width="1920" height="1080" alt="Screenshot (34)" src="https://github.com/user-attachments/assets/3b162cc7-d9f0-4594-a1b1-235d3b16f777" />
+<img width="1920" height="1080" alt="Screenshot (35)" src="https://github.com/user-attachments/assets/86e0854c-e1a8-4672-b88b-e709cb6482cd" />
+<img width="1920" height="1080" alt="Screenshot (36)" src="https://github.com/user-attachments/assets/2c9e550c-f938-4f96-b395-262293cf821d" />
+<img width="1920" height="1080" alt="Screenshot (37)" src="https://github.com/user-attachments/assets/28624026-6519-4335-813a-b363bf8f5330" />
 
