@@ -131,14 +131,18 @@ Pentru a testa fluxul complet, utilizați următoarele conturi predefinite (sau 
 ### 📊 Monitorizare (Admin)
 *   **Activity Logs:** Jurnal complet de audit pentru orice acțiune (schimbare status, încărcare fișier, comentariu).
 *   **Bottlenecks:** Grafice care arată timpul mediu de procesare pe fiecare departament pentru a identifica blocajele.
-<img width="614" height="346" alt="Screenshot (10)" src="https://github.com/user-attachments/assets/9efdc244-4d65-471d-b2ee-a0c432e7917a" />
-<img width="614" height="346" alt="Screenshot (11)" src="https://github.com/user-attachments/assets/e91a69df-c4f7-4e5e-bdf2-196915e2ee0d" />
-<img width="614" height="346" alt="Screenshot (12)" src="https://github.com/user-attachments/assets/1e7aeed2-852a-49fc-8c82-fdbff8d68ff3" />
-<img width="614" height="346" alt="Screenshot (13)" src="https://github.com/user-attachments/assets/77744e37-2f7d-454e-8123-a792673778af" />
-<img width="614" height="346" alt="Screenshot (15)" src="https://github.com/user-attachments/assets/30715d01-2514-463f-94d3-599f806650bd" />
-<img width="614" height="346" alt="Screenshot (16)" src="https://github.com/user-attachments/assets/bd3b2bf3-35c2-43fb-bac7-43c3eedfdc57" />
-<img width="614" height="346" alt="Screenshot (17)" src="https://github.com/user-attachments/assets/c2d4e016-1a7b-406c-a3dd-b524f0e07bc6" />
-<img width="614" height="346" alt="Screenshot (18)" src="https://github.com/user-attachments/assets/80907877-33a1-4d4b-b7c5-7aad3af74968" />
-<img width="614" height="346" alt="Screenshot (19)" src="https://github.com/user-attachments/assets/50c639d1-5cad-4a2d-940e-627a9bf08a95" />
-<img width="614" height="346" alt="Screenshot (20)" src="https://github.com/user-attachments/assets/9894dd8e-3c89-4aa7-b477-301f16726a8d" />
+
+<img width="1920" height="1080" alt="Screenshot (22)" src="https://github.com/user-attachments/assets/2b8fcbcb-1d14-401b-911d-6717e9cb6728" />
+<img width="1920" height="1080" alt="Screenshot (23)" src="https://github.com/user-attachments/assets/14fca0da-71a2-4b2b-b6eb-7acf9a8aa3f2" />
+<img width="1920" height="1080" alt="Screenshot (24)" src="https://github.com/user-attachments/assets/bc9a5fed-637b-4f00-89cd-cfc49a615017" />
+<img width="1920" height="1080" alt="Screenshot (25)" src="https://github.com/user-attachments/assets/561f4c3b-7019-479c-bfa8-074aa4bb409f" />
+<img width="1920" height="1080" alt="Screenshot (26)" src="https://github.com/user-attachments/assets/b4f45dc1-8197-4beb-b31f-a92bd3609ce4" />
+<img width="1920" height="1080" alt="Screenshot (27)" src="https://github.com/user-attachments/assets/564333ad-93f3-4e80-ad73-6bb4f27b9155" />
+<img width="1920" height="1080" alt="Screenshot (28)" src="https://github.com/user-attachments/assets/5356eecf-f141-42a9-9c05-0d48bc2966ed" />
+<img width="1920" height="1080" alt="Screenshot (29)" src="https://github.com/user-attachments/assets/9b65f3dc-dd1e-494c-8d36-23a33c2775f0" />
+<img width="1920" height="1080" alt="Screenshot (30)" src="https://github.com/user-attachments/assets/6b4dc24b-b465-4ed7-81c3-acf11a904ab8" />
+<img width="1920" height="1080" alt="Screenshot (31)" src="https://github.com/user-attachments/assets/0b478bd2-9437-4e57-97a8-1f962a3ef3ef" />
+<img width="1920" height="1080" alt="Screenshot (32)" src="https://github.com/user-attachments/assets/c48e0751-e373-48ae-bf7a-c02a5db9f2eb" />
+<img width="1920" height="1080" alt="Screenshot (33)" src="https://github.com/user-attachments/assets/31f4a7a4-885e-4ae4-8c08-c75354f5ffd1" />
+<img width="1920" height="1080" alt="Screenshot (34)" src="https://github.com/user-attachments/assets/3b162cc7-d9f0-4594-a1b1-235d3b16f777" />
 
