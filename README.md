@@ -131,3 +131,14 @@ Pentru a testa fluxul complet, utilizați următoarele conturi predefinite (sau 
 ### 📊 Monitorizare (Admin)
 *   **Activity Logs:** Jurnal complet de audit pentru orice acțiune (schimbare status, încărcare fișier, comentariu).
 *   **Bottlenecks:** Grafice care arată timpul mediu de procesare pe fiecare departament pentru a identifica blocajele.
+<img width="614" height="346" alt="Screenshot (10)" src="https://github.com/user-attachments/assets/9efdc244-4d65-471d-b2ee-a0c432e7917a" />
+<img width="614" height="346" alt="Screenshot (11)" src="https://github.com/user-attachments/assets/e91a69df-c4f7-4e5e-bdf2-196915e2ee0d" />
+<img width="614" height="346" alt="Screenshot (12)" src="https://github.com/user-attachments/assets/1e7aeed2-852a-49fc-8c82-fdbff8d68ff3" />
+<img width="614" height="346" alt="Screenshot (13)" src="https://github.com/user-attachments/assets/77744e37-2f7d-454e-8123-a792673778af" />
+<img width="614" height="346" alt="Screenshot (15)" src="https://github.com/user-attachments/assets/30715d01-2514-463f-94d3-599f806650bd" />
+<img width="614" height="346" alt="Screenshot (16)" src="https://github.com/user-attachments/assets/bd3b2bf3-35c2-43fb-bac7-43c3eedfdc57" />
+<img width="614" height="346" alt="Screenshot (17)" src="https://github.com/user-attachments/assets/c2d4e016-1a7b-406c-a3dd-b524f0e07bc6" />
+<img width="614" height="346" alt="Screenshot (18)" src="https://github.com/user-attachments/assets/80907877-33a1-4d4b-b7c5-7aad3af74968" />
+<img width="614" height="346" alt="Screenshot (19)" src="https://github.com/user-attachments/assets/50c639d1-5cad-4a2d-940e-627a9bf08a95" />
+<img width="614" height="346" alt="Screenshot (20)" src="https://github.com/user-attachments/assets/9894dd8e-3c89-4aa7-b477-301f16726a8d" />
+
