@@ -59,7 +59,14 @@ export default function RequestTimeline() {
                                    entry.action_type === 'file_delete' ? 'Ștergere Fișier' : 
                                    entry.action_type === 'signature' ? 'Dosar Semnat' : 'Acțiune'}
                               </p>
-                              <p className="text-sm text-slate-500 mt-1">{entry.comment || "Fără comentarii."}</p>
+                              <p className="text-sm text-slate-500 mt-1">
+                                  {entry.comment ? (
+                                      <span>
+                                          {entry.action_type === 'rejection' && <span className="font-semibold text-slate-700">Motiv: </span>}
+                                          {entry.comment}
+                                      </span>
+                                  ) : "Fără comentarii."}
+                              </p>
                               {entry.action_by_profile && (
                                   <p className="text-xs text-blue-600 mt-1 font-medium">
                                       De: {entry.action_by_profile.full_name || "Utilizator"} ({entry.action_by_profile.role})
@@ -711,7 +718,14 @@ export default function RequestTimeline() {
                                            entry.action_type === 'file_delete' ? 'Ștergere Fișier' : 
                                            entry.action_type === 'signature' ? 'Dosar Semnat' : 'Acțiune'}
                                       </p>
-                                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{entry.comment || "Fără comentarii."}</p>
+                                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                          {entry.comment ? (
+                                              <span>
+                                                  {entry.action_type === 'rejection' && <span className="font-semibold text-slate-700 dark:text-slate-300">Motiv: </span>}
+                                                  {entry.comment}
+                                              </span>
+                                          ) : "Fără comentarii."}
+                                      </p>
                                       {entry.action_by_profile && (
                                           <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
                                               De: {entry.action_by_profile.full_name || "Utilizator"} ({entry.action_by_profile.role})

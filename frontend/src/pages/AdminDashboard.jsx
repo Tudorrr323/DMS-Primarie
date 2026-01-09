@@ -554,6 +554,7 @@ export default function AdminDashboard() {
                                       pe cererea <Link to={`/requests/${log.document_id}`} className="text-blue-600 dark:text-blue-400 hover:underline">{log.document?.title || 'Document'}</Link>
                                   </p>
                                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                      {log.comment && log.action_type === 'rejection' && <span className="font-semibold text-slate-700 dark:text-slate-300 mr-1">Motiv:</span>}
                                       {(() => {
                                           let readableComment = log.comment || "";
                                           ['verificare_initiala', 'verificare_tehnica', 'verificare_finala'].forEach(key => {
