@@ -87,6 +87,7 @@ export default function CreateRequest() {
     if (e.type === "dragenter" || e.type === "dragover") {
       setIsDragging(true);
     } else if (e.type === "dragleave") {
+      if (e.currentTarget.contains(e.relatedTarget)) return;
       setIsDragging(false);
     }
   };
@@ -224,34 +225,37 @@ export default function CreateRequest() {
                     <p className="text-xs text-slate-500">Puteți selecta mai multe documente</p>
                   </div>
                 </div>
-              </div>
 
-              {formData.files.length > 0 && (
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                  {formData.files.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between bg-white dark:bg-slate-900 p-3 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="p-2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-                          <FileText className="h-4 w-4" />
+                {formData.files.length > 0 && (
+                  <div 
+                    className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 text-left animate-in fade-in slide-in-from-top-2 duration-300 cursor-default"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {formData.files.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between bg-white dark:bg-slate-900 p-3 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="p-2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                            <FileText className="h-4 w-4" />
+                          </div>
+                          <div className="truncate">
+                            <p className="text-sm font-medium dark:text-slate-200 truncate">{file.name}</p>
+                            <p className="text-[10px] text-slate-400 uppercase">{(file.size / 1024).toFixed(0)} KB</p>
+                          </div>
                         </div>
-                        <div className="truncate">
-                          <p className="text-sm font-medium dark:text-slate-200 truncate">{file.name}</p>
-                          <p className="text-[10px] text-slate-400 uppercase">{(file.size / 1024).toFixed(0)} KB</p>
-                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => { e.stopPropagation(); handleRemoveFile(file); }}
+                          className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => { e.stopPropagation(); handleRemoveFile(file); }}
-                        className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {fileError && (
                 <div className="mt-2 text-red-600 dark:text-red-400 flex items-center gap-2 bg-red-50 dark:bg-red-900/10 p-2 rounded-md border border-red-100 dark:border-red-900/20">
