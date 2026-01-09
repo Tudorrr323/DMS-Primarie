@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-// FOLOSIM NODEMAILER (Librăria modernă)
 import nodemailer from "https://esm.sh/nodemailer@6.9.13";
 
 const GMAIL_USER = Deno.env.get("GMAIL_USER");
@@ -20,19 +19,52 @@ serve(async (req) => {
     const payload = await req.json();
     const record = payload.record;
     const old_record = payload.old_record;
+    
+    const currentStage = record.workflow_stage; // 'completed' sau 'rejected'
 
-    // 1. Verificăm dacă e completed
-    if (record.workflow_stage !== 'completed') {
-      return new Response(JSON.stringify({ message: "Nu e completed." }), { headers: corsHeaders });
+    // 1. Verificăm dacă statusul este unul care ne interesează (Finalizat sau Respins)
+    if (currentStage !== 'completed' && currentStage !== 'rejected') {
+      return new Response(JSON.stringify({ message: "Statusul nu necesită notificare." }), { headers: corsHeaders });
     }
 
-    // 2. PROTECȚIA ANTI-SPAM
-    if (old_record && old_record.workflow_stage === 'completed') {
-      console.log("Dosarul era deja completed. Ignor.");
+    // 2. PROTECȚIA ANTI-SPAM (Valabilă pentru ambele cazuri)
+    // Dacă statusul nu s-a schimbat față de data trecută, nu mai trimitem mail.
+    if (old_record && old_record.workflow_stage === currentStage) {
+      console.log(`Dosarul era deja ${currentStage}. Ignor.`);
       return new Response(JSON.stringify({ message: "Mail deja trimis." }), { headers: corsHeaders });
     }
 
-    // 3. Căutăm emailul cetățeanului
+    // 3. Pregătim Conținutul Mailului (Dinamic)
+    let emailSubject = "";
+    let emailHtml = "";
+
+    if (currentStage === 'completed') {
+        // --- CAZUL FINALIZAT ---
+        emailSubject = `✅ Cerere Finalizată: ${record.title}`;
+        emailHtml = `
+            <h3>Salut,</h3>
+            <p>Vești bune! Cererea ta <strong>"${record.title}"</strong> a fost analizată și <span style="color:green; font-weight:bold;">FINALIZATĂ</span> cu succes.</p>
+            <p>Te rugăm să intri în aplicație la secțiunea "Dosarele Mele" pentru a descărca documentele semnate.</p>
+            <br>
+            <p>O zi bună,<br>Echipa Primărie</p>
+        `;
+    } else {
+        // --- CAZUL RESPINS ---
+        emailSubject = `❌ Cerere Respinsă: ${record.title}`;
+        // Putem adăuga motivul respingerii dacă ai o coloană 'rejection_reason'
+        const motiv = record.rejection_reason ? `<p><strong>Motivul respingerii:</strong> ${record.rejection_reason}</p>` : "";
+        
+        emailHtml = `
+            <h3>Salut,</h3>
+            <p>Din păcate, cererea ta <strong>"${record.title}"</strong> a fost <span style="color:red; font-weight:bold;">RESPINSĂ</span>.</p>
+            ${motiv}
+            <p>Te rugăm să intri în aplicație pentru a vedea detaliile și pentru a depune o nouă cerere corectată, dacă este cazul.</p>
+            <br>
+            <p>O zi bună,<br>Echipa Primărie</p>
+        `;
+    }
+
+    // 4. Căutăm emailul cetățeanului
     const supabaseAdmin = createClient(
       SUPABASE_URL ?? "",
       SUPABASE_SERVICE_ROLE_KEY ?? ""
@@ -44,32 +76,25 @@ serve(async (req) => {
       throw new Error("Nu am găsit emailul utilizatorului");
     }
 
-    console.log(`Trimit mail catre: ${user.email} cu Nodemailer...`);
+    console.log(`Trimit mail (${currentStage}) catre: ${user.email}`);
 
-    // 4. CONFIGURARE NODEMAILER (Aici se schimbă fața de data trecută)
+    // 5. Configurare Nodemailer
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
       port: 465,
-      secure: true, // true pentru 465, false pentru alte porturi
+      secure: true,
       auth: {
         user: GMAIL_USER,
         pass: GMAIL_APP_PASS,
       },
     });
 
-    // 5. TRIMITEM MAILUL
+    // 6. Trimitem Mailul
     const info = await transporter.sendMail({
-      from: `"Primaria Digitala" <${GMAIL_USER}>`, // Nume frumos
+      from: `"Primaria Digitala" <${GMAIL_USER}>`,
       to: user.email,
-      subject: `✅ Cerere Finalizată: ${record.title}`,
-      text: `Cererea ta "${record.title}" a fost finalizată. Intră în aplicație pentru detalii.`, // Versiunea text simplu
-      html: `
-        <h3>Salut,</h3>
-        <p>Cererea ta <strong>"${record.title}"</strong> a fost analizată și <span style="color:green; font-weight:bold;">FINALIZATĂ</span> cu succes.</p>
-        <p>Te rugăm să intri în aplicație la secțiunea "Dosarele Mele" pentru a descărca documentele semnate.</p>
-        <br>
-        <p>O zi bună,<br>Echipa Primărie</p>
-      `,
+      subject: emailSubject,
+      html: emailHtml,
     });
 
     console.log("Mail trimis cu succes:", info.messageId);
@@ -77,7 +102,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (error) {
-    console.error("EROARE MAJORA:", error);
+    console.error("EROARE:", error);
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
