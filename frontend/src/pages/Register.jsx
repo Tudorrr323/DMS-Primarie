@@ -27,6 +27,19 @@ export default function Register() {
     }
 
     try {
+      // Step 1: Check if email already exists using the PostgreSQL function
+      const { data: emailExists, error: rpcError } = await supabase.rpc('check_email_exists', { email_to_check: email });
+
+      if (rpcError) {
+        throw rpcError;
+      }
+
+      if (emailExists) {
+        setError("Adresa de email este deja folosită.");
+        return;
+      }
+
+      // Step 2: If email does not exist, proceed with Supabase signUp
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -38,11 +51,15 @@ export default function Register() {
       });
 
       if (error) {
-        throw error;
+        // If Supabase returns an actual error during signup, display it.
+        setError(error.message);
+        return;
       }
 
+      // If no error and email didn't exist, then the signup process was initiated for a new user.
       setSuccess(true);
     } catch (error) {
+      // Catch any unexpected errors during the process
       setError(error.message);
     }
   };
@@ -66,7 +83,7 @@ export default function Register() {
           </div>
           {success ? (
             <div className="text-center p-4 bg-green-100 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-800">
-              <h3 className="text-lg font-semibold text-green-700 dark:text-green-400">Înregistrare reușită!</h3>
+              <h3 className="text-lg font-semibold text-green-700 dark:text-green-400">Verifică-ți email-ul!</h3>
               <p className="text-sm text-slate-600 dark:text-slate-300 mt-2">Te rugăm să verifici adresa de email pentru a confirma contul.</p>
             </div>
           ) : (
@@ -87,7 +104,7 @@ export default function Register() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="admin@primarie.ro"
+                  placeholder="user@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
