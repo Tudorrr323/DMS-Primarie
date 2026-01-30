@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, FileText, User, Menu } from 'lucide-react';
+import { Home, FileText, User, Menu, HardDrive } from 'lucide-react';
 import { useAuthContext } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -57,6 +57,7 @@ export default function Layout() {
 
     if (profile?.role === 'admin') {
       homeLink = { to: '/admin', text: 'Meniu Principal', icon: Home };
+      baseLinks.push({ to: '/admin/drive', text: 'Smart Drive', icon: HardDrive });
     } else if (profile?.role === 'angajat') {
       switch (profile.department) {
         case 'verificare_initiala':

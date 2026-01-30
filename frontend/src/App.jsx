@@ -6,6 +6,7 @@ import InitialVerificationDashboard from './pages/InitialVerificationDashboard';
 import TechnicalVerificationDashboard from './pages/TechnicalVerificationDashboard';
 import FinalVerificationDashboard from './pages/FinalVerificationDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import SmartDrive from './feature/smart-drive/SmartDrive';
 import Profile from './pages/Profile';
 import Requests from './pages/Requests';
 import CreateRequest from './pages/CreateRequest';
@@ -29,6 +30,7 @@ function App() {
 
           {/* Protected Routes (Require Login) */}
           <Route element={<ProtectedRoute />}>
+            {/* Layout-ul Standard (cu Sidebar) */}
             <Route element={<Layout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/verificare-initiala" element={<InitialVerificationDashboard />} />
@@ -41,6 +43,9 @@ function App() {
               <Route path="/requests/new" element={<CreateRequest />} />
               <Route path="/requests/:id" element={<RequestTimeline />} />
             </Route>
+
+            {/* Layout Fullscreen pentru Drive (Fără Sidebar standard) */}
+            <Route path="/admin/drive" element={<SmartDrive />} />
           </Route>
 
           {/* Fallback */}
