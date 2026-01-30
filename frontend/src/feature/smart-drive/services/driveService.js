@@ -9,6 +9,7 @@ export const driveService = {
   getUserSpace: vfs.getUserSpace,
   getFolderContents: (spaceId, folderId) => vfs.getFolderContents(folderId),
   getSharedWithMe: vfs.getSharedWithMe,
+  getTrashItems: vfs.getTrashItems,
   getFolderDetails: async (folderId) => {
       // getBreadcrumbs returnează tot lanțul, noi luăm doar ultimul element pentru detalii curente
       // sau folosim getBreadcrumbs pentru navigare completă

@@ -3,6 +3,7 @@ import { driveService } from '../services/driveService';
 
 const VIRTUAL_ROOT = 'VIRTUAL_ROOT';
 const SHARED_ROOT = 'SHARED_ROOT';
+const TRASH_ROOT = 'TRASH_ROOT';
 
 export const useDriveStore = create((set, get) => ({
   // State
@@ -13,8 +14,29 @@ export const useDriveStore = create((set, get) => ({
   isLoading: false,
   viewMode: 'grid',
   error: null,
+  
+  // Selection
+  selectedItemIds: [],
 
   // Actions
+  toggleSelection: (itemId, multiSelect) => set((state) => {
+      if (multiSelect) {
+          const isSelected = state.selectedItemIds.includes(itemId);
+          return {
+              selectedItemIds: isSelected 
+                  ? state.selectedItemIds.filter(id => id !== itemId)
+                  : [...state.selectedItemIds, itemId]
+          };
+      }
+      return { selectedItemIds: [itemId] };
+  }),
+
+  selectAll: () => set((state) => ({
+      selectedItemIds: state.items.map(i => i.id)
+  })),
+
+  clearSelection: () => set({ selectedItemIds: [] }),
+
   setViewMode: (mode) => set({ viewMode: mode }),
 
   // Inițializare
@@ -76,21 +98,16 @@ export const useDriveStore = create((set, get) => ({
         const realMyDriveFolder = rootContents.find(i => i.type === 'folder' && i.name === 'My Drive');
 
         if (realMyDriveFolder) {
-            // Intrăm direct în folderul real
             const actualItems = await driveService.getFolderContents(spaceInfo.id, realMyDriveFolder.id);
             items = actualItems;
             newPath = [
                 { id: VIRTUAL_ROOT, name: 'Home' },
                 { id: realMyDriveFolder.id, name: 'My Drive' }
             ];
-            // Setăm ID-ul real pentru viitoarele operațiuni
             set({ currentFolderId: realMyDriveFolder.id });
-            
-            // Corectăm URL-ul cu ID-ul real
             url.searchParams.set('folder', realMyDriveFolder.id);
             window.history.pushState({}, '', url);
         } else {
-            // Fallback
             items = rootContents;
             newPath = [{ id: VIRTUAL_ROOT, name: 'Home' }, { id: null, name: 'My Drive' }];
         }
@@ -102,6 +119,15 @@ export const useDriveStore = create((set, get) => ({
         newPath = [
             { id: VIRTUAL_ROOT, name: 'Home' },
             { id: SHARED_ROOT, name: 'Shared with Me' }
+        ];
+      }
+
+      // --- 3.5 TRASH ROOT ---
+      else if (folderId === TRASH_ROOT) {
+        items = await driveService.getTrashItems();
+        newPath = [
+            { id: VIRTUAL_ROOT, name: 'Home' },
+            { id: TRASH_ROOT, name: 'Trash' }
         ];
       }
 
@@ -143,7 +169,7 @@ export const useDriveStore = create((set, get) => ({
 
   createFolder: async (name) => {
     const { spaceInfo, currentFolderId } = get();
-    if (currentFolderId === VIRTUAL_ROOT || currentFolderId === SHARED_ROOT) {
+    if (currentFolderId === VIRTUAL_ROOT || currentFolderId === SHARED_ROOT || currentFolderId === TRASH_ROOT) {
         set({ error: "Nu poți crea foldere aici." });
         return;
     }
@@ -158,7 +184,7 @@ export const useDriveStore = create((set, get) => ({
 
   uploadFile: async (file) => {
     const { spaceInfo, currentFolderId } = get();
-    if (currentFolderId === VIRTUAL_ROOT || currentFolderId === SHARED_ROOT) {
+    if (currentFolderId === VIRTUAL_ROOT || currentFolderId === SHARED_ROOT || currentFolderId === TRASH_ROOT) {
         set({ error: "Nu poți încărca fișiere aici." });
         return;
     }
@@ -167,11 +193,61 @@ export const useDriveStore = create((set, get) => ({
     try {
       await driveService.uploadFile(file, spaceInfo.id, currentFolderId);
       await get().loadFolder(currentFolderId);
-      await get().refreshSpaceInfo();
+      
+      // Strategie Dublă Verificare pentru Bara de Stocare
+      // 1. Refresh Rapid (pentru majoritatea cazurilor)
+      setTimeout(() => get().refreshSpaceInfo(), 1000);
+      
+      // 2. Refresh de Siguranță (pentru latențe DB/Trigger)
+      setTimeout(() => get().refreshSpaceInfo(), 3500);
+      
     } catch (err) {
       console.error(err);
       set({ error: "Eroare la upload: " + err.message, isLoading: false });
     }
+  },
+
+  deleteItem: async (itemId, type) => {
+      set({ isLoading: true });
+      try {
+          await driveService.deleteItem(itemId, type);
+          await get().refreshCurrentFolder();
+          // NU apelăm refreshSpaceInfo aici deoarece Trash-ul ocupă în continuare spațiu
+      } catch (err) {
+          set({ error: "Eroare la ștergere: " + err.message, isLoading: false });
+      }
+  },
+
+  deletePermanently: async (itemId, type) => {
+      set({ isLoading: true });
+      try {
+          await driveService.deletePermanently(itemId, type);
+          await get().refreshCurrentFolder();
+          // Aici este critic să actualizăm spațiul
+          setTimeout(() => get().refreshSpaceInfo(), 800);
+      } catch (err) {
+          set({ error: "Eroare la ștergere definitivă: " + err.message, isLoading: false });
+      }
+  },
+
+  restoreItem: async (itemId, type) => {
+      set({ isLoading: true });
+      try {
+          await driveService.restoreItem(itemId, type);
+          await get().refreshCurrentFolder();
+      } catch (err) {
+          set({ error: "Eroare la restaurare: " + err.message, isLoading: false });
+      }
+  },
+
+  renameItem: async (itemId, type, newName) => {
+      set({ isLoading: true });
+      try {
+          await driveService.renameItem(itemId, type, newName);
+          await get().refreshCurrentFolder();
+      } catch (err) {
+          set({ error: "Eroare la redenumire: " + err.message, isLoading: false });
+      }
   }
 
 }));

@@ -10,3 +10,4 @@ export * from './actions/organize';
 export * from './actions/breadcrumbs';
 export * from './actions/permissions';
 export * from './actions/getSharedWithMe';
+export * from './actions/getTrashItems';
