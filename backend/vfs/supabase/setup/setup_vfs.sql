@@ -141,6 +141,10 @@ drop policy if exists "Owner space visibility" on vfs.user_space;
 create policy "Owner space visibility" on vfs.user_space
 for select using (profile_id = (select auth.uid()));
 
+drop policy if exists "Insert own space" on vfs.user_space;
+create policy "Insert own space" on vfs.user_space
+for insert with check (profile_id = (select auth.uid()));
+
 -- Folders
 drop policy if exists "View active folders" on vfs.folders;
 create policy "View active folders" on vfs.folders
@@ -396,3 +400,11 @@ for delete using (
      )
   )
 );
+
+-- 10. Permissions
+
+GRANT USAGE ON SCHEMA vfs TO postgres, anon, authenticated, service_role;
+
+GRANT ALL ON ALL TABLES IN SCHEMA vfs TO postgres, anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA vfs TO postgres, anon, authenticated, service_role;
+GRANT ALL ON ALL ROUTINES IN SCHEMA vfs TO postgres, anon, authenticated, service_role;
