@@ -44,6 +44,12 @@ export interface Permission {
   file_id: string | null;
   profile_id: string;
   access_level: AccessLevel;
+  // Optional expanded user details for UI
+  user?: {
+    email: string;
+    full_name?: string;
+    avatar_url?: string;
+  };
 }
 
 // Unified item for lists (File or Folder)
