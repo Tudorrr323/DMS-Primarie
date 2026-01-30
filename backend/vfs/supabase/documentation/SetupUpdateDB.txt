@@ -1,0 +1,382 @@
+1. Configurații Globale: Tipuri de Date
+Înainte de tabele, definim ce „limbi” vorbește baza de date pentru permisiuni.
+
+SQL
+-- Definim nivelurile de acces, similar cu Google Drive
+create type public.access_level as enum ('viewer', 'editor');
+
+
+2. Tabela user_space (Containerul de Stocare)
+Gândește-te la aceasta ca la „hard disk-ul” virtual al fiecărui utilizator.
+
+SQL
+create table public.user_space (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid not null unique references public.profiles(id) on delete cascade,
+  storage_limit bigint not null default 524288000, -- Limita de 500MB
+  storage_used bigint not null default 0,          -- Cât s-a consumat
+  created_at timestamp with time zone default now()
+);
+
+-- INDEX: Pentru a găsi instant spațiul unui user când se loghează
+create index idx_user_space_profile_id on public.user_space(profile_id);
+
+De ce separăm spațiul de profil? Pentru a izola logica de stocare de datele de identitate (nume, email). Dacă vrei ca un spațiu să fie partajat de o întreagă firmă mai târziu, structura permite acest lucru.
+
+3. Tabela folders (Harta Virtuală)
+Folosim modelul Adjacency List (Lista de Adiacență), recomandat pentru simplitatea mutării folderelor.
+
+SQL
+create table public.folders (
+  id uuid primary key default gen_random_uuid(),
+  space_id uuid not null references public.user_space(id) on delete cascade,
+  parent_id uuid references public.folders(id) on delete cascade,
+  name text not null,
+  created_at timestamp with time zone default now(),
+
+  -- Prevenim două foldere cu același nume în același loc (inclusiv în Root)
+  constraint folder_name_unique_in_space unique nulls not distinct (space_id, parent_id, name)
+);
+
+-- INDEX: Esențial pentru "navigarea în jos" prin subfoldere [cite: 21]
+create index idx_folders_parent_id on public.folders(parent_id);
+
+Logica de Root: Dacă parent_id este $NULL$, înseamnă că folderul este în „Rădăcina” drive-ului utilizatorului.De ce Adjacency List? Permite mutarea unui întreg subarbore (un folder cu 1000 de subfoldere) printr-o singură modificare de parent_id.
+
+4. Tabela files și file_versions (Identitate vs. Conținut)
+Separăm „Numele fișierului” de „Fisierul fizic” pentru a permite versionarea documentelor.
+
+SQL
+-- Entitatea pe care o vede userul (ex: "Raport.pdf")
+create table public.files (
+  id uuid primary key default gen_random_uuid(),
+  space_id uuid not null references public.user_space(id) on delete cascade,
+  folder_id uuid references public.folders(id) on delete cascade,
+  name text not null,
+  mime_type text,
+  created_at timestamp with time zone default now(),
+
+  constraint file_name_unique_in_folder unique nulls not distinct (space_id, folder_id, name)
+);
+
+-- Versiunile fizice (unde stă fișierul în Supabase Storage) 
+create table public.file_versions (
+  id uuid primary key default gen_random_uuid(),
+  file_id uuid not null references public.files(id) on delete cascade,
+  storage_path text not null, -- Calea către bucket (ex: "space1/v2_raport.pdf")
+  size bigint not null,        -- Mărimea în bytes
+  version_number int not null, -- 1, 2, 3...
+  created_at timestamp with time zone default now()
+);
+
+Versionarea: Când un utilizator urcă o variantă nouă a unui fișier, adăugăm un rând nou în file_versions. Astfel, putem oricând să recuperăm o versiune veche.
+
+5. Tabela permissions (Partajarea ca în Google Drive)
+Permite utilizatorilor să ofere acces altora la elemente specifice.
+
+SQL
+create table public.permissions (
+  id uuid primary key default gen_random_uuid(),
+  folder_id uuid references public.folders(id) on delete cascade,
+  file_id uuid references public.files(id) on delete cascade,
+  profile_id uuid not null references public.profiles(id) on delete cascade,
+  access_level public.access_level not null default 'viewer',
+  
+  constraint unique_user_perm_folder unique(folder_id, profile_id),
+  constraint unique_user_perm_file unique(file_id, profile_id),
+  constraint folder_or_file_check check ((folder_id is not null) or (file_id is not null))
+);
+
+6. Triggere (Automatizarea „Creierului”)
+A. Setup automat la înregistrare
+Când un utilizator nou se înscrie, îi creăm automat spațiul și folderul principal numit „My Drive”.
+
+SQL
+create or replace function public.handle_new_user_setup()
+returns trigger as $$
+declare
+  new_space_id uuid;
+begin
+  insert into public.user_space (profile_id) values (new.id) returning id into new_space_id;
+  insert into public.folders (space_id, parent_id, name) values (new_space_id, null, 'My Drive');
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger on_profile_created after insert on public.profiles
+for each row execute procedure public.handle_new_user_setup();
+
+B. Sincronizarea consumului de date
+Acest trigger calculează automat cât spațiu ocupă toate versiunile tuturor fișierelor dintr-un drive.
+
+SQL
+create or replace function public.sync_storage_usage()
+returns trigger as $$
+begin
+  update public.user_space set storage_used = (
+    select coalesce(sum(v.size), 0)
+    from public.file_versions v
+    join public.files f on v.file_id = f.id
+    where f.space_id = (select space_id from public.files where id = coalesce(new.file_id, old.file_id))
+  ) where id = (select space_id from public.files where id = coalesce(new.file_id, old.file_id));
+  return null;
+end;
+$$ language plpgsql;
+
+create trigger on_version_change after insert or delete on public.file_versions
+for each row execute procedure public.sync_storage_usage();
+
+Capitolul 7: Securitatea prin Row Level Security (RLS)
+Securitatea într-un sistem de fișiere colaborativ nu poate fi lăsată doar în seama codului de frontend. Supabase utilizează Row Level Security (RLS) pentru a forța politicile de acces direct în motorul PostgreSQL. Astfel, indiferent de unde vine cererea, regulile sunt aplicate automat.
+
+7.1. Pregătirea: Activarea și Optimizarea
+Înainte de a defini regulile, activăm protecția pe toate tabelele și definim mecanismele de performanță.
+
+SQL
+-- Activăm "scutul" pe fiecare tabelă
+alter table public.profiles enable row level security;
+alter table public.user_space enable row level security;
+alter table public.folders enable row level security;
+alter table public.files enable row level security;
+alter table public.file_versions enable row level security;
+alter table public.permissions enable row level security;
+
+Notă despre Performanță: Pentru a preveni degradarea vitezei la mii de documente, folosim tehnica "Wrapping în SELECT". Utilizarea (SELECT auth.uid()) în loc de auth.uid() forțează baza de date să stocheze rezultatul în memorie (caching) pentru toată durata interogării, în loc să îl recalculeze pentru fiecare rând.
+
+7.2. Politici de Acces detaliate
+A. Tabela profiles și user_space Accesul este limitat la identitatea proprie și la datele de stocare aferente.
+
+SQL
+-- Profiles: Poți vedea profilul tău și poți căuta alți utilizatori (pentru partajare)
+create policy "Profiles visibility" on public.profiles
+for select using (true); -- Permite căutarea userilor pentru share 
+
+-- User Space: Doar proprietarul își vede limitele de stocare
+create policy "Owner space visibility" on public.user_space
+for select using (profile_id = (select auth.uid())); --
+
+B. Tabela folders (Acces Proprietar + Shared) Implementăm moștenirea permisiunilor: dacă ai acces la un folder părinte, ai acces la tot conținutul.
+
+SQL
+create policy "Folder access" on public.folders
+for select using (
+  -- Ești proprietarul drive-ului
+  space_id in (select id from public.user_space where profile_id = (select auth.uid()))
+  or
+  -- Sau ai primit acces (direct sau moștenit prin ierarhie)
+  public.has_access(id, (select auth.uid())) -- [cite: 34]
+);
+
+C. Tabela files și file_versions Protejăm atât metadatele fișierului, cât și căile fizice către stocarea binară (bucket).
+
+SQL
+-- Files: Vizibilitate bazată pe proprietate sau permisiuni partajate
+create policy "File access" on public.files
+for select using (
+  space_id in (select id from public.user_space where profile_id = (select auth.uid()))
+  or
+  exists (select 1 from public.permissions where file_id = id and profile_id = (select auth.uid()))
+  or
+  (folder_id is not null and public.has_access(folder_id, (select auth.uid())))
+);
+
+-- Versions: Doar dacă poți vedea fișierul părinte, poți vedea și versiunile lui
+create policy "Version access" on public.file_versions
+for select using (exists (select 1 from public.files where id = file_id));
+
+D. Tabela permissions (Managementul Accesului) Doar proprietarul resursei (folder sau fișier) are dreptul de a modifica cine mai are acces.
+
+SQL
+create policy "Manage sharing" on public.permissions
+for all using (
+  exists (
+    select 1 from public.folders where id = folder_id 
+    and space_id in (select id from public.user_space where profile_id = (select auth.uid()))
+  ) or 
+  exists (
+    select 1 from public.files where id = file_id 
+    and space_id in (select id from public.user_space where profile_id = (select auth.uid()))
+  )
+);
+
+7.3. De ce este această logică „Google Drive Style”?
+
+Moștenire Automată: Prin funcția has_access (de tip Security Definer), permisiunile „curg” de sus în jos.
+
+
+Auditabil: Fiecare acțiune este verificată față de tabela de permissions, asigurând o pistă de audit clară.
+
+
+Performanță Scalabilă: Tehnica de caching a ID-ului de utilizator permite interogări rapide chiar și în structuri ierarhice complexe.
+
+Capitolul 8 (Revizuit): Istoricul de Modificări cu Tipuri Predefinite
+Folosirea listelor predefinite (ENUMs) transformă coloanele de text în categorii fixe, recunoscute nativ de baza de date.
+
+8.1. Definirea Listelor (ENUM Types)
+Mai întâi, stabilim exact ce entități monitorizăm și ce acțiuni pot fi efectuate asupra lor.
+
+SQL
+-- Lista obiectelor care pot fi auditate
+create type public.audit_entity_type as enum (
+  'folder', 
+  'file', 
+  'permission', 
+  'space'
+);
+
+-- Lista acțiunilor permise în sistem
+create type public.audit_action_type as enum (
+  'CREATE', -- Inserare
+  'UPDATE', -- Modificare metadate
+  'DELETE', -- Ștergere (sau mutare în Trash)
+  'MOVE',   -- Schimbarea folderului părinte
+  'SHARE',  -- Acordarea de permisiuni
+  'RESTORE' -- Recuperarea din coșul de gunoi
+);
+8.2. Tabela audit_log Optimizată
+Acum, tabela va folosi aceste tipuri stricte în loc de text liber.
+
+SQL
+create table public.audit_log (
+  id uuid primary key default gen_random_uuid(),
+  space_id uuid not null references public.user_space(id) on delete cascade,
+  profile_id uuid references public.profiles(id), -- Cine a făcut acțiunea [cite: 58]
+  
+  -- Folosim tipurile predefinite
+  entity_type public.audit_entity_type not null,
+  entity_id uuid not null,
+  action_type public.audit_action_type not null,
+  
+  -- Datele vechi și noi pentru comparație [cite: 54, 58]
+  old_data jsonb,
+  new_data jsonb,
+  
+  created_at timestamp with time zone default now()
+);
+
+-- Index pentru performanța raportării activității
+create index idx_audit_log_space_id on public.audit_log(space_id);
+create index idx_audit_log_created_at on public.audit_log(created_at desc);
+8.3. Trigger-ul de Audit cu Logică de Conversie
+Trigger-ul trebuie acum să „traducă” operațiunile bazei de date (INSERT, UPDATE, DELETE) în tipurile noastre predefinite.
+
+SQL
+create or replace function public.process_audit_log()
+returns trigger as $$
+declare
+    current_user_id uuid := (select auth.uid()); -- Identitatea din JWT [cite: 58]
+    target_space_id uuid;
+    final_action public.audit_action_type;
+    final_entity public.audit_entity_type;
+begin
+    -- 1. Identificăm Space ID-ul
+    target_space_id := coalesce(new.space_id, old.space_id);
+
+    -- 2. Mapăm operația SQL la tipul nostru ENUM
+    final_action := case 
+        when tg_op = 'INSERT' then 'CREATE'::public.audit_action_type
+        when tg_op = 'UPDATE' then 
+            case 
+                when old.parent_id is distinct from new.parent_id then 'MOVE'::public.audit_action_type
+                else 'UPDATE'::public.audit_action_type
+            end
+        when tg_op = 'DELETE' then 'DELETE'::public.audit_action_type
+    end;
+
+    -- 3. Mapăm numele tabelei la tipul de entitate
+    final_entity := case 
+        when tg_table_name = 'folders' then 'folder'::public.audit_entity_type
+        when tg_table_name = 'files' then 'file'::public.audit_entity_type
+        when tg_table_name = 'permissions' then 'permission'::public.audit_entity_type
+    end;
+
+    -- 4. Inserăm în log 
+    insert into public.audit_log (
+        space_id, profile_id, entity_type, entity_id, action_type, old_data, new_data
+    )
+    values (
+        target_space_id, current_user_id, final_entity, coalesce(new.id, old.id), 
+        final_action, 
+        case when tg_op != 'INSERT' then to_jsonb(old) else null end,
+        case when tg_op != 'DELETE' then to_jsonb(new) else null end
+    );
+    return null;
+end;
+$$ language plpgsql security definer;
+De ce este mai bine așa?
+
+Validare Automată: Dacă încerci să introduci o acțiune care nu e în listă (ex: „HACK”), baza de date va respinge cererea instantaneu.
+
+Consistență: În Next.js, poți folosi aceste tipuri ENUM pentru a afișa iconițe diferite pentru fiecare acțiune fără să te temi că datele sunt inconsistente.
+
+
+Audit Trail Imuabil: Folosind security definer, ne asigurăm că trigger-ul are permisiunea să scrie în log chiar dacă utilizatorul are permisiuni restricționate pe alte tabele.
+
+Capitolul 9: Sistemul de Coș de Gunoi (Soft Delete) și RestaurareÎn loc să ștergem rândurile fizic din baza de date, le marcăm cu o dată de ștergere. Acest lucru permite vizualizarea lor într-o secțiune separată de „Trash” și restaurarea lor ulterioară.9.1. Modificarea Tabelelor ExistenteAdăugăm coloana deleted_at tabelelor principale. Dacă această coloană este NULL, elementul este activ; dacă are o valoare, elementul este în coșul de gunoi.SQL-- Adăugăm marcajul de ștergere pentru Foldere
+alter table public.folders 
+add column deleted_at timestamp with time zone default null;
+
+-- Adăugăm marcajul de ștergere pentru Fișiere
+alter table public.files 
+add column deleted_at timestamp with time zone default null;
+
+-- Indexuri pentru a găsi rapid elementele din coșul de gunoi
+create index idx_folders_deleted_at on public.folders(deleted_at) where deleted_at is not null;
+create index idx_files_deleted_at on public.files(deleted_at) where deleted_at is not null;
+9.2. Actualizarea Politicilor RLS (Filtrarea Automată)Este critic să actualizăm politicile de securitate (RLS) pentru ca interogările obișnuite să nu returneze fișierele din coșul de gunoi decât dacă este cerut explicit.SQL-- Exemplu de politică actualizată pentru vizualizarea folderelor active
+create policy "View active folders" on public.folders
+for select using (
+  (space_id in (select id from public.user_space where profile_id = (select auth.uid())) 
+   or public.has_access(id, (select auth.uid())))
+  and deleted_at is null -- Ascundem elementele șterse din vederea principală
+);
+
+-- Politică separată pentru vizualizarea coșului de gunoi
+create policy "View trash" on public.folders
+for select using (
+  space_id in (select id from public.user_space where profile_id = (select auth.uid()))
+  and deleted_at is not null
+);
+9.3. Curățarea Automată după 30 de ZilePentru a respecta politicile de retenție și a elibera spațiul, versiunile și fișierele trebuie șterse definitiv după un interval de timp (ex: $30$ de zile).SQL-- Funcție care șterge definitiv elementele vechi
+create or replace function public.cleanup_trash()
+returns void security definer as $$
+begin
+  -- Ștergere definitivă (Hard Delete) pentru foldere și fișiere marcate acum mai mult de 30 de zile
+  delete from public.folders where deleted_at < (now() - interval '30 days');
+  delete from public.files where deleted_at < (now() - interval '30 days');
+end;
+$$ language plpgsql;
+Auditarea ștergerii: Această acțiune va declanșa automat trigger-ul de audit creat anterior, înregistrând o acțiune de tip DELETE.Managementul spațiului: La ștergerea definitivă, trigger-ul sync_storage_usage va recalcula automat spațiul ocupat, scăzând dimensiunea fișierelor eliminate.9.4. Logica de Restaurare (Restore)Restaurarea unui fișier presupune simpla resetare a coloanei deleted_at la NULL. Acest proces va fi înregistrat în audit_log cu tipul de acțiune RESTORE pe care l-am definit în ENUM.SQL-- Procedură pentru restaurare
+create or replace function public.restore_item(item_id uuid, is_folder boolean)
+returns void as $$
+begin
+  if is_folder then
+    update public.folders set deleted_at = null where id = item_id;
+  else
+    update public.files set deleted_at = null where id = item_id;
+  end if;
+end;
+$$ language plpgsql;
+Avantajele acestei abordări:Siguranță: Mutarea în coșul de gunoi este o operațiune atomică rapidă (Adjacency List permite acest lucru printr-un singur UPDATE).Consistență: Toate versiunile fișierului rămân legate de entitatea din coșul de gunoi, permițând restaurarea întregului istoric.Performanță: Indexurile parțiale pe deleted_at asigură că interogările pentru coșul de gunoi sunt instantanee, indiferent de numărul total de fișiere.
+
+Funcția de curățare automată (Cleanup Job)
+Putem folosi conceptul de Temporal Tables sau un script programat care să șteargă versiunile vechi. Această funcție identifică versiunile care nu mai sunt „adevărul curent” și le elimină.
+
+SQL
+create or replace function public.cleanup_useless_versions(days_to_keep int default 30)
+returns void security definer as $$
+begin
+  -- Ștergem versiunile care:
+  -- 1. NU sunt versiunea actuală (cea mai mare)
+  -- 2. Sunt mai vechi de X zile
+  delete from public.file_versions v
+  where v.created_at < (now() - (days_to_keep || ' days')::interval)
+    and v.version_number < (
+      select max(version_number) 
+      from public.file_versions 
+      where file_id = v.file_id
+    );
+end;
+$$ language plpgsql;
+
+
