@@ -1,4 +1,3 @@
-import { SupabaseClient } from '@supabase/supabase-js';
 // Adjust the import path to match your project structure where the supabase client is initialized
 import { supabase } from '../../../frontend/src/lib/supabase'; 
 import { handleVFSError } from './errors';
@@ -12,10 +11,13 @@ import {
 
 const BUCKET_NAME = 'vfs-bucket';
 
-export class VFSService {
-  private client: SupabaseClient;
+// Infer the client type directly from the initialized instance to avoid mismatch errors
+type SupabaseClientType = typeof supabase;
 
-  constructor(client: SupabaseClient = supabase) {
+export class VFSService {
+  private client: SupabaseClientType;
+
+  constructor(client: SupabaseClientType = supabase) {
     this.client = client;
   }
 

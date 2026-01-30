@@ -1,4 +1,6 @@
-import { PostgrestError } from '@supabase/supabase-js';
+// We use 'any' here to avoid strict type dependency on the specific node_modules path
+// which causes issues when backend/ is treated as a separate root.
+// The error object from Supabase usually has code, message, details.
 
 export class VFSError extends Error {
   originalError: any;
@@ -17,7 +19,7 @@ export class VFSError extends Error {
 /**
  * Translates raw Supabase/PostgreSQL errors into user-friendly messages (Romanian).
  */
-export const handleVFSError = (error: PostgrestError | Error | any, customMessage?: string): VFSError => {
+export const handleVFSError = (error: any, customMessage?: string): VFSError => {
   console.error("VFS Operation Failed:", error);
 
   // Default fallback
