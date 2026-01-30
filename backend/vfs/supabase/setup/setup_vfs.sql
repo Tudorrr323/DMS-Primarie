@@ -116,7 +116,14 @@ alter table vfs.permissions enable row level security;
 
 -- Check Access (Recursive)
 create or replace function vfs.has_access(_folder_id uuid, _profile_id uuid)
-returns boolean security definer as $$
+returns boolean 
+language plpgsql
+security definer
+set search_path = vfs, public
+as $$
+declare
+    has_perm boolean;
+begin
     with recursive folder_tree as (
         select id, parent_id
         from vfs.folders
@@ -131,8 +138,11 @@ returns boolean security definer as $$
         from vfs.permissions p
         join folder_tree ft on p.folder_id = ft.id
         where p.profile_id = _profile_id
-    );
-$$ language sql;
+    ) into has_perm;
+
+    return coalesce(has_perm, false);
+end;
+$$;
 
 -- 6. RLS Policies
 
