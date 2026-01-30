@@ -28,7 +28,8 @@ export class VFSService {
     try {
       // Use 'any' cast to bypass strict typing on the generic client response
       const response = await this.client
-        .from('vfs.user_space')
+        .schema('vfs')
+        .from('user_space')
         .select('*')
         .single();
         
@@ -49,14 +50,16 @@ export class VFSService {
       if (!user.user) throw new Error("User not authenticated");
 
       let folderQuery = this.client
-        .from('vfs.folders')
+        .schema('vfs')
+        .from('folders')
         .select('id, name, created_at, parent_id, deleted_at')
         .is('deleted_at', null)
         .order('name');
 
       let fileQuery = this.client
-        .from('vfs.files')
-        .select('id, name, created_at, mime_type, folder_id, deleted_at, vfs.file_versions(size)')
+        .schema('vfs')
+        .from('files')
+        .select('id, name, created_at, mime_type, folder_id, deleted_at, file_versions(size)')
         .is('deleted_at', null)
         .order('name');
 
@@ -123,7 +126,8 @@ export class VFSService {
       if (!space) throw new Error("User Space not found");
 
       const response = await this.client
-        .from('vfs.folders')
+        .schema('vfs')
+        .from('folders')
         .insert({
           space_id: space.id,
           parent_id: parentId,
@@ -153,7 +157,8 @@ export class VFSService {
 
       // 1. Create File Metadata
       const fileResponse = await this.client
-        .from('vfs.files')
+        .schema('vfs')
+        .from('files')
         .insert({
           space_id: space.id,
           folder_id: parentId,
@@ -178,13 +183,14 @@ export class VFSService {
         });
 
       if (storageResponse.error) {
-        await this.client.from('vfs.files').delete().eq('id', vfsFile.id);
+        await this.client.schema('vfs').from('files').delete().eq('id', vfsFile.id);
         throw storageResponse.error;
       }
 
       // 3. Create Version Entry
       const versionResponse = await this.client
-        .from('vfs.file_versions')
+        .schema('vfs')
+        .from('file_versions')
         .insert({
           file_id: vfsFile.id,
           storage_path: storagePath,
@@ -206,7 +212,8 @@ export class VFSService {
   async getFileUrl(fileId: string): Promise<string> {
     try {
       const versionResponse = await this.client
-        .from('vfs.file_versions')
+        .schema('vfs')
+        .from('file_versions')
         .select('storage_path')
         .eq('file_id', fileId)
         .order('version_number', { ascending: false })
@@ -234,8 +241,9 @@ export class VFSService {
    */
   async moveToTrash(id: string, type: 'folder' | 'file'): Promise<void> {
     try {
-      const table = type === 'folder' ? 'vfs.folders' : 'vfs.files';
+      const table = type === 'folder' ? 'folders' : 'files';
       const { error } = await this.client
+        .schema('vfs')
         .from(table)
         .update({ deleted_at: new Date().toISOString() })
         .eq('id', id);
@@ -267,8 +275,9 @@ export class VFSService {
    */
   async renameItem(id: string, type: 'folder' | 'file', newName: string): Promise<void> {
     try {
-      const table = type === 'folder' ? 'vfs.folders' : 'vfs.files';
+      const table = type === 'folder' ? 'folders' : 'files';
       const { error } = await this.client
+        .schema('vfs')
         .from(table)
         .update({ name: newName })
         .eq('id', id);
@@ -291,7 +300,8 @@ export class VFSService {
 
       while (currentId) {
         const response = await this.client
-          .from('vfs.folders')
+          .schema('vfs')
+          .from('folders')
           .select('id, name, parent_id')
           .eq('id', currentId)
           .single();
