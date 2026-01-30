@@ -96,7 +96,9 @@ export class VFSService {
       const files = filesRes.data as any[];
       if (files) {
         files.forEach((f: any) => {
-          const size = f['vfs.file_versions']?.[0]?.size || 0; 
+          // Handle potential response structure variations (with/without schema prefix or alias)
+          const versions = f.file_versions || f['vfs.file_versions'] || f.versions;
+          const size = versions?.[0]?.size || 0; 
           
           items.push({
             id: f.id,
