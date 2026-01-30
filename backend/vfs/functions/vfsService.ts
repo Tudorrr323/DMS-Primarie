@@ -127,6 +127,15 @@ export class VFSService {
       const space = await this.getUserSpace();
       if (!space) throw new Error("User Space not found");
 
+      // If no parentId is provided, try to find "My Drive" to keep the tree clean
+      // Otherwise, it creates a sibling to "My Drive" which is valid but maybe not intended.
+      /* 
+      if (!parentId) {
+         const myDrive = await this.client.schema('vfs').from('folders').select('id').eq('name', 'My Drive').eq('parent_id', null).single();
+         if (myDrive.data) parentId = myDrive.data.id;
+      }
+      */
+
       const response = await this.client
         .schema('vfs')
         .from('folders')
