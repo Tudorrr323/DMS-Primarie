@@ -15,10 +15,17 @@ export const useDriveStore = create((set, get) => ({
   viewMode: 'grid',
   error: null,
   
+  // Sidebar Refresh Signaling
+  sidebarRefresh: { count: 0, targetId: null },
+  
   // Selection
   selectedItemIds: [],
 
   // Actions
+  triggerSidebarRefresh: (targetId) => set((state) => ({
+      sidebarRefresh: { count: state.sidebarRefresh.count + 1, targetId }
+  })),
+
   toggleSelection: (itemId, multiSelect) => set((state) => {
       if (multiSelect) {
           const isSelected = state.selectedItemIds.includes(itemId);
@@ -177,6 +184,7 @@ export const useDriveStore = create((set, get) => ({
     try {
       await driveService.createFolder(spaceInfo.id, currentFolderId, name);
       await get().loadFolder(currentFolderId);
+      get().triggerSidebarRefresh(currentFolderId);
     } catch (err) {
       set({ error: err.message });
     }
@@ -212,6 +220,7 @@ export const useDriveStore = create((set, get) => ({
       try {
           await driveService.deleteItem(itemId, type);
           await get().refreshCurrentFolder();
+          get().triggerSidebarRefresh(get().currentFolderId);
           // NU apelăm refreshSpaceInfo aici deoarece Trash-ul ocupă în continuare spațiu
       } catch (err) {
           set({ error: "Eroare la ștergere: " + err.message, isLoading: false });
@@ -223,6 +232,7 @@ export const useDriveStore = create((set, get) => ({
       try {
           await driveService.deletePermanently(itemId, type);
           await get().refreshCurrentFolder();
+          get().triggerSidebarRefresh(get().currentFolderId);
           // Aici este critic să actualizăm spațiul
           setTimeout(() => get().refreshSpaceInfo(), 800);
       } catch (err) {
@@ -235,6 +245,7 @@ export const useDriveStore = create((set, get) => ({
       try {
           await driveService.restoreItem(itemId, type);
           await get().refreshCurrentFolder();
+          get().triggerSidebarRefresh(get().currentFolderId);
       } catch (err) {
           set({ error: "Eroare la restaurare: " + err.message, isLoading: false });
       }
@@ -245,6 +256,7 @@ export const useDriveStore = create((set, get) => ({
       try {
           await driveService.renameItem(itemId, type, newName);
           await get().refreshCurrentFolder();
+          get().triggerSidebarRefresh(get().currentFolderId);
       } catch (err) {
           set({ error: "Eroare la redenumire: " + err.message, isLoading: false });
       }

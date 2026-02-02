@@ -19,14 +19,14 @@ export const DriveBreadcrumb = () => {
 
         return (
           <div key={folder.id || index} className="flex items-center">
-            {index > 0 && <ChevronRight className="h-4 w-4 mx-1 text-slate-400" />}
+            {index > 0 && <ChevronRight className="h-4 w-4 mx-1 text-muted-foreground" />}
             
             <Button
               variant="link"
               className={`p-0 h-auto font-normal flex items-center hover:no-underline ${
                 isLast 
-                  ? 'font-semibold text-slate-800 pointer-events-none' 
-                  : 'text-slate-500 hover:text-blue-600'
+                  ? 'font-semibold text-foreground pointer-events-none' 
+                  : 'text-muted-foreground hover:text-primary'
               }`}
               onClick={() => {
                   if (isRoot) loadFolder('VIRTUAL_ROOT');

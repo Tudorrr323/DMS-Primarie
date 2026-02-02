@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useDriveStore } from '../store/useDriveStore';
 import { Folder, FileText, FileImage, MoreVertical, Loader2, UploadCloud, HardDrive, Users, Download, Trash2, Edit2, Share2, Eye, RefreshCcw } from 'lucide-react';
 import { Card } from '@/components/ui/card';
@@ -9,11 +9,11 @@ import { driveService } from '../services/driveService';
 // Helper pentru iconițe
 const ItemIcon = ({ item, className }) => {
   if (item.isVirtual) {
-      if (item.icon === 'hard-drive') return <HardDrive className={`text-blue-600 fill-blue-100 ${className}`} />;
+      if (item.icon === 'hard-drive') return <HardDrive className={`text-primary fill-primary/10 ${className}`} />;
       if (item.icon === 'users') return <Users className={`text-purple-600 fill-purple-100 ${className}`} />;
-      if (item.icon === 'trash') return <Trash2 className={`text-red-600 fill-red-100 ${className}`} />;
+      if (item.icon === 'trash') return <Trash2 className={`text-destructive fill-destructive/10 ${className}`} />;
   }
-  if (item.type === 'folder') return <Folder className={`text-blue-500 fill-blue-500 ${className}`} />;
+  if (item.type === 'folder') return <Folder className={`text-primary fill-primary/20 ${className}`} />;
   if (item.mime_type?.startsWith('image/')) return <FileImage className={`text-blue-400 ${className}`} />;
   return <FileText className={`text-blue-400 ${className}`} />;
 };
@@ -22,11 +22,12 @@ export const DriveExplorer = () => {
   const { 
       items, isLoading, loadFolder, initializeDrive, uploadFile, currentFolderId, 
       selectedItemIds, toggleSelection, selectAll, clearSelection,
-      deleteItem, deletePermanently, restoreItem, renameItem 
+      deleteItem, deletePermanently, restoreItem, renameItem, viewMode, createFolder
   } = useDriveStore();
   
   const [isDragging, setIsDragging] = useState(false);
   const [contextMenu, setContextMenu] = useState(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     initializeDrive();
@@ -39,6 +40,26 @@ export const DriveExplorer = () => {
     document.addEventListener('click', handleGlobalClick);
     return () => document.removeEventListener('click', handleGlobalClick);
   }, []);
+
+  // --- Actions for Background Context Menu ---
+  const handleCreateFolder = async () => {
+      const name = prompt("Introdu numele folderului:");
+      if (name) {
+          await createFolder(name);
+      }
+  };
+
+  const handleUploadTrigger = () => {
+      fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+          const file = e.target.files[0];
+          await uploadFile(file);
+      }
+      e.target.value = '';
+  };
 
   // --- Drag & Drop Handlers ---
   const handleDragOver = useCallback((e) => {
@@ -159,65 +180,127 @@ export const DriveExplorer = () => {
       setContextMenu({ x: e.clientX, y: e.clientY, items: menuItems });
   };
 
+  const handleBackgroundContextMenu = (e) => {
+      e.preventDefault();
+      
+      // Don't show create options in virtual folders where we can't write
+      if (currentFolderId === 'VIRTUAL_ROOT' || currentFolderId === 'SHARED_ROOT' || currentFolderId === 'TRASH_ROOT') {
+          setContextMenu(null);
+          return;
+      }
+
+      setContextMenu({
+          x: e.clientX,
+          y: e.clientY,
+          items: [
+              { label: 'Folder Nou', icon: Folder, action: handleCreateFolder },
+              { label: 'Încarcă Fișier', icon: UploadCloud, action: handleUploadTrigger }
+          ]
+      });
+  };
+
   if (isLoading) {
-    return <div className="flex justify-center p-12"><Loader2 className="h-6 w-6 animate-spin text-blue-500" /></div>;
+    return <div className="flex justify-center p-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
   }
 
   return (
     <div 
-        className="relative min-h-[400px] select-none" // Disable text selection for better file manager feel
+        className="relative min-h-[400px] select-none p-1" // Disable text selection for better file manager feel
         onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
-        onContextMenu={(e) => {
-            e.preventDefault();
-            // Background context menu (Create folder, Refresh) - Optional
-            setContextMenu(null);
-        }}
+        onContextMenu={handleBackgroundContextMenu}
     >
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        className="hidden" 
+        onChange={handleFileChange} 
+      />
+
       {isDragging && (
-        <div className="absolute inset-0 z-50 bg-blue-500/10 border-2 border-blue-500 border-dashed rounded-xl flex flex-col items-center justify-center backdrop-blur-sm pointer-events-none">
-            <UploadCloud className="h-16 w-16 text-blue-600 animate-bounce" />
-            <h3 className="text-xl font-bold text-blue-700 mt-4">Drop files here</h3>
+        <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-primary border-dashed rounded-xl flex flex-col items-center justify-center backdrop-blur-sm pointer-events-none">
+            <UploadCloud className="h-16 w-16 text-primary animate-bounce" />
+            <h3 className="text-xl font-bold text-primary mt-4">Drop files here</h3>
         </div>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-        {items.map((item) => {
-          const isSelected = selectedItemIds.includes(item.id);
-          return (
-            <Card 
-                key={item.id}
-                className={`drive-item group relative border shadow-sm transition-all cursor-pointer rounded-xl overflow-hidden aspect-[4/3] flex flex-col p-4
-                    ${isSelected ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' : 'bg-white border-slate-200 hover:border-blue-300 hover:shadow-md'}
-                `}
-                onClick={(e) => handleItemClick(e, item)}
-                onDoubleClick={(e) => handleItemDoubleClick(e, item)}
-                onContextMenu={(e) => handleContextMenu(e, item)}
-            >
-                {/* Selection Checkbox (Visible on hover or selected) */}
-                <div className={`absolute top-2 left-2 z-10 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                    <div className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-blue-500 border-blue-500' : 'bg-white border-slate-300'}`}>
-                        {isSelected && <div className="w-2.5 h-1.5 border-l-2 border-b-2 border-white -mt-0.5 rotate-[-45deg]" />}
-                    </div>
-                </div>
-
-                <div className="flex-1 flex items-center justify-center pointer-events-none">
-                    <ItemIcon item={item} className={item.isVirtual ? "h-16 w-16" : "h-12 w-12"} />
-                </div>
-
-                <div className="mt-3 text-center w-full">
-                    <div className="text-sm font-medium text-slate-700 truncate px-1" title={item.name}>
-                        {item.name}
-                    </div>
-                    {!item.isVirtual && (
-                        <div className="text-[10px] text-slate-400 mt-0.5 flex justify-center items-center gap-1">
-                            {item.size ? (item.size / 1024).toFixed(1) + ' KB' : 'Item'}
+      {viewMode === 'grid' ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {items.map((item) => {
+            const isSelected = selectedItemIds.includes(item.id);
+            return (
+                <Card 
+                    key={item.id}
+                    className={`drive-item group relative border shadow-sm transition-all cursor-pointer rounded-xl overflow-hidden aspect-[4/3] flex flex-col p-4
+                        ${isSelected ? 'bg-primary/10 border-primary ring-1 ring-primary' : 'bg-card border-border hover:border-primary/50 hover:shadow-md'}
+                    `}
+                    onClick={(e) => handleItemClick(e, item)}
+                    onDoubleClick={(e) => handleItemDoubleClick(e, item)}
+                    onContextMenu={(e) => handleContextMenu(e, item)}
+                >
+                    {/* Selection Checkbox (Visible on hover or selected) */}
+                    <div className={`absolute top-2 left-2 z-10 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                        <div className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-primary border-primary' : 'bg-background border-input'}`}>
+                            {isSelected && <div className="w-2.5 h-1.5 border-l-2 border-b-2 border-primary-foreground -mt-0.5 rotate-[-45deg]" />}
                         </div>
-                    )}
-                </div>
-            </Card>
-          );
-        })}
-      </div>
+                    </div>
+
+                    <div className="flex-1 flex items-center justify-center pointer-events-none">
+                        <ItemIcon item={item} className={item.isVirtual ? "h-16 w-16" : "h-12 w-12"} />
+                    </div>
+
+                    <div className="mt-3 text-center w-full">
+                        <div className="text-sm font-medium text-foreground truncate px-1" title={item.name}>
+                            {item.name}
+                        </div>
+                        {!item.isVirtual && (
+                            <div className="text-[10px] text-muted-foreground mt-0.5 flex justify-center items-center gap-1">
+                                {item.size ? (item.size / 1024).toFixed(1) + ' KB' : 'Item'}
+                            </div>
+                        )}
+                    </div>
+                </Card>
+            );
+            })}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1">
+            {/* List Header */}
+            <div className="grid grid-cols-12 gap-4 px-4 py-2 text-xs font-medium text-muted-foreground border-b border-border">
+                <div className="col-span-6">Name</div>
+                <div className="col-span-2">Size</div>
+                <div className="col-span-4">Type</div>
+            </div>
+            {items.map((item) => {
+                const isSelected = selectedItemIds.includes(item.id);
+                return (
+                    <div 
+                        key={item.id}
+                        className={`drive-item group grid grid-cols-12 gap-4 px-4 py-2 items-center rounded-md cursor-pointer transition-colors
+                            ${isSelected ? 'bg-primary/10' : 'hover:bg-accent'}
+                        `}
+                        onClick={(e) => handleItemClick(e, item)}
+                        onDoubleClick={(e) => handleItemDoubleClick(e, item)}
+                        onContextMenu={(e) => handleContextMenu(e, item)}
+                    >
+                         <div className="col-span-6 flex items-center gap-3 overflow-hidden">
+                             <div className="flex-shrink-0">
+                                 <ItemIcon item={item} className="h-5 w-5" />
+                             </div>
+                             <span className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : 'text-foreground'}`}>
+                                 {item.name}
+                             </span>
+                         </div>
+                         <div className="col-span-2 text-xs text-muted-foreground">
+                             {!item.isVirtual && item.size ? (item.size / 1024).toFixed(1) + ' KB' : '-'}
+                         </div>
+                         <div className="col-span-4 text-xs text-muted-foreground truncate">
+                             {item.isVirtual ? 'System Folder' : (item.type === 'folder' ? 'Folder' : item.mime_type || 'File')}
+                         </div>
+                    </div>
+                );
+            })}
+        </div>
+      )}
 
       {contextMenu && (
           <ContextMenu 
