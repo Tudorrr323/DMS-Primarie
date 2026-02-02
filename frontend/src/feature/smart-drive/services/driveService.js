@@ -1,4 +1,16 @@
-import * as vfs from './vfs';
+import { getUserSpace } from './vfs/actions/getUserSpace';
+import { getFolderContents } from './vfs/actions/getFolderContents';
+import { getSharedWithMe } from './vfs/actions/getSharedWithMe';
+import { getTrashItems } from './vfs/actions/getTrashItems';
+import { getBreadcrumbs } from './vfs/actions/breadcrumbs';
+import { createFolder } from './vfs/actions/createFolder';
+import { uploadFile } from './vfs/actions/uploadFile';
+import { getFileUrl } from './vfs/actions/downloadFile';
+import { moveToTrash, restoreFromTrash, deletePermanently } from './vfs/actions/trash';
+import { renameItem, moveItem } from './vfs/actions/organize';
+import { getPermissions, grantPermission, revokePermission } from './vfs/actions/permissions';
+import { searchItems } from './vfs/actions/searchItems';
+import { copyItem } from './vfs/actions/copyItem';
 
 /**
  * Service Wrapper pentru VFS.
@@ -6,32 +18,32 @@ import * as vfs from './vfs';
  */
 export const driveService = {
   // 1. Spațiu & Conținut
-  getUserSpace: vfs.getUserSpace,
-  getFolderContents: (spaceId, folderId) => vfs.getFolderContents(folderId),
-  getSharedWithMe: vfs.getSharedWithMe,
-  getTrashItems: vfs.getTrashItems,
+  getUserSpace,
+  getFolderContents: (spaceId, folderId) => getFolderContents(folderId),
+  getSharedWithMe,
+  getTrashItems,
   getFolderDetails: async (folderId) => {
-      // getBreadcrumbs returnează tot lanțul, noi luăm doar ultimul element pentru detalii curente
-      // sau folosim getBreadcrumbs pentru navigare completă
-      const crumbs = await vfs.getBreadcrumbs(folderId);
-      return crumbs[crumbs.length - 1]; // Returnăm folderul curent
+      const crumbs = await getBreadcrumbs(folderId);
+      return crumbs[crumbs.length - 1]; 
   },
 
   // 2. Acțiuni Creare
-  createFolder: (spaceId, parentId, name) => vfs.createFolder(name, parentId),
-  uploadFile: (file, spaceId, parentId) => vfs.uploadFile(file, parentId),
+  createFolder: (spaceId, parentId, name) => createFolder(name, parentId),
+  uploadFile: (file, spaceId, parentId) => uploadFile(file, parentId),
 
   // 3. Acțiuni Fișiere
-  getFileUrl: vfs.getFileUrl,
-  deleteItem: vfs.moveToTrash,
-  restoreItem: vfs.restoreFromTrash,
-  deletePermanently: vfs.deletePermanently,
-  renameItem: vfs.renameItem,
-  moveItem: vfs.moveItem,
+  getFileUrl,
+  deleteItem: moveToTrash,
+  restoreItem: restoreFromTrash,
+  deletePermanently,
+  renameItem,
+  moveItem,
+  copyItem,
 
   // 4. Navigare & Permisiuni
-  getBreadcrumbs: vfs.getBreadcrumbs,
-  getPermissions: vfs.getPermissions,
-  grantPermission: vfs.grantPermission,
-  revokePermission: vfs.revokePermission
+  getBreadcrumbs,
+  getPermissions,
+  grantPermission,
+  revokePermission,
+  searchItems
 };

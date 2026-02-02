@@ -56,7 +56,7 @@ const TreeNode = ({ node, level = 0, activeId, onSelect, onToggleExpand }) => {
         <div className="flex flex-col">
             {node.isLoading ? (
                 <div className="pl-8 py-1 text-xs text-muted-foreground flex items-center">
-                    <Loader2 size={10} className="animate-spin mr-2" /> Loading...
+                    <Loader2 size={10} className="animate-spin mr-2" /> Se încarcă...
                 </div>
             ) : (
                 node.children.map(child => (
@@ -77,9 +77,49 @@ const TreeNode = ({ node, level = 0, activeId, onSelect, onToggleExpand }) => {
 };
 
 export const DriveSidebar = () => {
-  const { spaceInfo, currentFolderId, loadFolder, createFolder, uploadFile, sidebarRefresh } = useDriveStore();
+  const { spaceInfo, currentFolderId, loadFolder, createFolder, uploadFile, sidebarRefresh, currentPath } = useDriveStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Starea arborelui (ierarhică)
+  const [treeData, setTreeData] = useState([
+      { id: 'my-drive-root', name: 'My Drive', type: 'root', isExpanded: true, children: [], dbId: null },
+      { id: 'shared-root', name: 'Shared with Me', type: 'root', isExpanded: false, children: [] },
+      { id: 'trash-root', name: 'Trash', type: 'root', isExpanded: false, children: [], icon: 'trash' }
+  ]);
+
+  // --- AUTO-EXPAND LOGIC ---
+  useEffect(() => {
+    if (!currentPath || currentPath.length === 0) return;
+    
+    // Găsim primul nod din cale care nu este expandat în sidebar
+    const findFirstUnexpanded = (nodes, path, index) => {
+      if (index >= path.length) return null;
+      const pathItem = path[index];
+      
+      // Skip VIRTUAL_ROOT (Home)
+      if (pathItem.id === 'VIRTUAL_ROOT') return findFirstUnexpanded(nodes, path, index + 1);
+      
+      const node = nodes.find(n => 
+        n.id === pathItem.id || 
+        n.dbId === pathItem.id || 
+        (n.id === 'my-drive-root' && pathItem.name === 'My Drive') ||
+        (n.id === 'shared-root' && pathItem.id === 'SHARED_ROOT') ||
+        (n.id === 'trash-root' && pathItem.id === 'TRASH_ROOT')
+      );
+
+      if (node) {
+        if (!node.isExpanded) return node;
+        return findFirstUnexpanded(node.children || [], path, index + 1);
+      }
+      return null;
+    };
+
+    const targetNode = findFirstUnexpanded(treeData, currentPath, 0);
+    if (targetNode) {
+      handleToggleExpand(targetNode);
+    }
+  }, [currentPath, treeData]);
 
   const handleCreateFolder = async () => {
       setIsMenuOpen(false);
@@ -101,13 +141,6 @@ export const DriveSidebar = () => {
       }
       e.target.value = '';
   };
-  
-  // Starea arborelui (ierarhică)
-  const [treeData, setTreeData] = useState([
-      { id: 'my-drive-root', name: 'My Drive', type: 'root', isExpanded: true, children: [], dbId: null },
-      { id: 'shared-root', name: 'Shared with Me', type: 'root', isExpanded: false, children: [] },
-      { id: 'trash-root', name: 'Trash', type: 'root', isExpanded: false, children: [], icon: 'trash' }
-  ]);
 
   // Inițializare: Încărcăm My Drive la prima randare dacă avem spaceInfo
   useEffect(() => {
@@ -269,74 +302,73 @@ export const DriveSidebar = () => {
     <div 
         className="flex flex-col h-full p-4 bg-background border-r border-border"
     >
-      {/* ADD NEW BUTTON & MENU */}
-      <div className="relative mb-6 z-20">
-          <Button 
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-none font-medium"
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-          >
-            <Plus className="mr-2 h-4 w-4" /> Add New
-          </Button>
-
-          {isMenuOpen && (
-              <>
-                  <div className="fixed inset-0 z-10" onClick={() => setIsMenuOpen(false)} />
-                  <div className="absolute top-full left-0 w-full mt-2 bg-popover rounded-md shadow-xl border border-border py-1 z-20 animate-in fade-in zoom-in-95 duration-100">
-                    <button 
-                        className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-accent flex items-center gap-2"
-                        onClick={handleCreateFolder}
-                    >
-                        <Folder className="h-4 w-4 text-primary" /> 
-                        <span>Folder Nou</span>
-                    </button>
-                    <button 
-                        className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-accent flex items-center gap-2"
-                        onClick={handleUploadTrigger}
-                    >
-                        <UploadCloud className="h-4 w-4 text-green-500" /> 
-                        <span>Încarcă Fișier</span>
-                    </button>
-                  </div>
-              </>
-          )}
-      </div>
-
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        className="hidden" 
-        onChange={handleFileChange} 
-      />
-
-      {/* TREE VIEW */}
-      <div className="flex-1 overflow-y-auto -ml-2"> 
-        {treeData.map(node => (
-            <TreeNode 
-                key={node.id} 
-                node={node} 
-                activeId={currentFolderId} // Highlight nodul curent
-                onSelect={handleSelect}
-                onToggleExpand={handleToggleExpand}
+            {/* ADD NEW BUTTON & MENU */}
+            <div className="relative mb-6 z-20">
+                <Button 
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-none font-medium"
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                >
+                  <Plus className="mr-2 h-4 w-4" /> Adaugă
+                </Button>
+      
+                {isMenuOpen && (
+                    <>
+                        <div className="fixed inset-0 z-10" onClick={() => setIsMenuOpen(false)} />
+                        <div className="absolute top-full left-0 w-full mt-2 bg-popover rounded-md shadow-xl border border-border py-1 z-20 animate-in fade-in zoom-in-95 duration-100">
+                          <button 
+                              className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-accent flex items-center gap-2"
+                              onClick={handleCreateFolder}
+                          >
+                              <Folder className="h-4 w-4 text-primary" /> 
+                              <span>Folder Nou</span>
+                          </button>
+                          <button 
+                              className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-accent flex items-center gap-2"
+                              onClick={handleUploadTrigger}
+                          >
+                              <UploadCloud className="h-4 w-4 text-green-500" /> 
+                              <span>Încarcă Fișier</span>
+                          </button>
+                        </div>
+                    </>
+                )}
+            </div>
+      
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              onChange={handleFileChange} 
             />
-        ))}
-      </div>
-
-      {/* STORAGE BAR */}
-      <div className="mt-auto pt-6 border-t border-border">
-        <div className="flex justify-between text-xs mb-1.5">
-            <span className="text-muted-foreground font-medium">Storage</span>
-            <span className="text-muted-foreground">{rawPercent.toFixed(1)}%</span>
-        </div>
-        <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden mb-2">
-            <div 
-                className={`h-full rounded-full transition-all duration-500 ${percent > 90 ? 'bg-destructive' : 'bg-primary'}`} 
-                style={{ width: `${percent}%` }}
-            ></div>
-        </div>
-        <div className="text-xs text-muted-foreground">
-            {formattedUsed} of {formattedLimit} used
-        </div>
-      </div>
-    </div>
+      
+            {/* TREE VIEW */}
+            <div className="flex-1 overflow-y-auto -ml-2"> 
+              {treeData.map(node => (
+                  <TreeNode 
+                      key={node.id} 
+                      node={node} 
+                      activeId={currentFolderId} // Highlight nodul curent
+                      onSelect={handleSelect}
+                      onToggleExpand={handleToggleExpand}
+                  />
+              ))}
+            </div>
+      
+            {/* STORAGE BAR */}
+            <div className="mt-auto pt-6 border-t border-border">
+              <div className="flex justify-between text-xs mb-1.5">
+                  <span className="text-muted-foreground font-medium">Stocare</span>
+                  <span className="text-muted-foreground">{rawPercent.toFixed(1)}%</span>
+              </div>
+              <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden mb-2">
+                  <div 
+                      className={`h-full rounded-full transition-all duration-500 ${percent > 90 ? 'bg-destructive' : 'bg-primary'}`}
+                      style={{ width: `${percent}%` }}
+                  ></div>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                  {formattedUsed} din {formattedLimit} utilizați
+              </div>
+            </div>    </div>
   );
 };

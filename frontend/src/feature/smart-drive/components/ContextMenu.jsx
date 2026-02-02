@@ -1,39 +1,65 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useLayoutEffect } from 'react';
 
 export const ContextMenu = ({ x, y, onClose, items }) => {
   const menuRef = useRef(null);
+  const [position, setPosition] = useState({ top: y, left: x });
+  const [isVisible, setIsVisible] = useState(false);
 
-  // Close on click outside
+  useLayoutEffect(() => {
+    if (menuRef.current) {
+      const menuRect = menuRef.current.getBoundingClientRect();
+      const screenWidth = window.innerWidth;
+      const screenHeight = window.innerHeight;
+
+      let finalX = x;
+      let finalY = y;
+
+      if (x + menuRect.width > screenWidth) {
+        finalX = screenWidth - menuRect.width - 10;
+      }
+      if (y + menuRect.height > screenHeight) {
+        finalY = screenHeight - menuRect.height - 10;
+      }
+
+      finalX = Math.max(10, finalX);
+      finalY = Math.max(10, finalY);
+
+      setPosition({ top: finalY, left: finalX });
+      setIsVisible(true);
+    }
+  }, [x, y]);
+
   useEffect(() => {
-    const handleClickOutside = (event) => {
+    const handleOutsideAction = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         onClose();
       }
     };
-    // Close on Scroll (to avoid floating menu detached)
-    const handleScroll = () => onClose();
 
-    document.addEventListener('mousedown', handleClickOutside);
-    window.addEventListener('scroll', handleScroll, true);
-    
+    // Ascultăm pe 'mousedown' și 'wheel' pentru a închide meniul corect
+    document.addEventListener('mousedown', handleOutsideAction);
+    window.addEventListener('wheel', onClose, { passive: true });
+    window.addEventListener('resize', onClose);
+
     return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-        window.removeEventListener('scroll', handleScroll, true);
+      document.removeEventListener('mousedown', handleOutsideAction);
+      window.removeEventListener('wheel', onClose);
+      window.removeEventListener('resize', onClose);
     };
   }, [onClose]);
 
   if (!items || items.length === 0) return null;
 
-  // Adjust position if close to screen edge (Basic)
-  const style = { top: y, left: x };
-  if (window.innerHeight - y < 200) style.top = y - 200; // Flip up if at bottom
-
   return (
     <div 
       ref={menuRef}
-      className="fixed z-50 w-56 bg-popover rounded-lg shadow-xl border border-border py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
-      style={style}
-      onContextMenu={(e) => e.preventDefault()} // Prevent native menu on custom menu
+      className="fixed z-50 w-56 bg-popover rounded-lg shadow-xl border border-border py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-75"
+      style={{ 
+        top: position.top, 
+        left: position.left,
+        opacity: isVisible ? 1 : 0 
+      }}
+      onContextMenu={(e) => e.preventDefault()}
     >
       {items.map((item, index) => (
         item.separator ? (

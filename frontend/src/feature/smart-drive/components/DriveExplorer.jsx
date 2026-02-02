@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useDriveStore } from '../store/useDriveStore';
-import { Folder, FileText, FileImage, MoreVertical, Loader2, UploadCloud, HardDrive, Users, Download, Trash2, Edit2, Share2, Eye, RefreshCcw } from 'lucide-react';
+import { 
+    Folder, FileText, FileImage, MoreVertical, Loader2, UploadCloud, HardDrive, Users, 
+    Download, Trash2, Edit2, Share2, Eye, RefreshCcw, Scissors, Copy, ClipboardPaste 
+} from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ContextMenu } from './ContextMenu';
@@ -22,10 +25,12 @@ export const DriveExplorer = () => {
   const { 
       items, isLoading, loadFolder, initializeDrive, uploadFile, currentFolderId, 
       selectedItemIds, toggleSelection, selectAll, clearSelection,
-      deleteItem, deletePermanently, restoreItem, renameItem, viewMode, createFolder
+      deleteItem, deletePermanently, restoreItem, renameItem, viewMode, createFolder,
+      searchQuery, error, setClipboard, clipboard, paste
   } = useDriveStore();
   
   const [isDragging, setIsDragging] = useState(false);
+  
   const [contextMenu, setContextMenu] = useState(null);
   const fileInputRef = useRef(null);
 
@@ -171,6 +176,15 @@ export const DriveExplorer = () => {
 
           if (!item.isVirtual && !item.is_shared) { 
               menuItems.push({ separator: true });
+              menuItems.push({ label: 'Taie (Cut)', icon: Scissors, action: () => {
+                const selectedItems = items.filter(i => selectedItemIds.includes(i.id));
+                setClipboard(selectedItems.length > 0 ? selectedItems : [item], 'cut');
+              }});
+              menuItems.push({ label: 'Copiază (Copy)', icon: Copy, action: () => {
+                const selectedItems = items.filter(i => selectedItemIds.includes(i.id));
+                setClipboard(selectedItems.length > 0 ? selectedItems : [item], 'copy');
+              }});
+              menuItems.push({ separator: true });
               menuItems.push({ label: 'Redenumire', icon: Edit2, action: () => handleRename(item) });
               menuItems.push({ separator: true });
               menuItems.push({ label: 'Șterge', icon: Trash2, danger: true, action: () => handleDelete(item) });
@@ -189,13 +203,20 @@ export const DriveExplorer = () => {
           return;
       }
 
+      const backgroundItems = [
+          { label: 'Folder Nou', icon: Folder, action: handleCreateFolder },
+          { label: 'Încarcă Fișier', icon: UploadCloud, action: handleUploadTrigger }
+      ];
+
+      if (clipboard.items.length > 0) {
+          backgroundItems.push({ separator: true });
+          backgroundItems.push({ label: `Lipește (${clipboard.items.length} elemente)`, icon: ClipboardPaste, action: paste });
+      }
+
       setContextMenu({
           x: e.clientX,
           y: e.clientY,
-          items: [
-              { label: 'Folder Nou', icon: Folder, action: handleCreateFolder },
-              { label: 'Încarcă Fișier', icon: UploadCloud, action: handleUploadTrigger }
-          ]
+          items: backgroundItems
       });
   };
 
@@ -203,9 +224,19 @@ export const DriveExplorer = () => {
     return <div className="flex justify-center p-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
   }
 
+  const currentError = useDriveStore.getState().error;
+  if (currentError) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center">
+        <div className="text-destructive mb-4">Eroare: {currentError}</div>
+        <Button onClick={() => initializeDrive()}>Încearcă din nou</Button>
+      </div>
+    );
+  }
+
   return (
     <div 
-        className="relative min-h-[400px] select-none p-1" // Disable text selection for better file manager feel
+        className="relative flex-1 w-full select-none flex flex-col" // Fill remaining height without forcing overflow
         onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
         onContextMenu={handleBackgroundContextMenu}
     >
@@ -219,91 +250,104 @@ export const DriveExplorer = () => {
       {isDragging && (
         <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-primary border-dashed rounded-xl flex flex-col items-center justify-center backdrop-blur-sm pointer-events-none">
             <UploadCloud className="h-16 w-16 text-primary animate-bounce" />
-            <h3 className="text-xl font-bold text-primary mt-4">Drop files here</h3>
+            <h3 className="text-xl font-bold text-primary mt-4">Plasează fișierele aici</h3>
         </div>
       )}
 
-      {viewMode === 'grid' ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {items.map((item) => {
-            const isSelected = selectedItemIds.includes(item.id);
-            return (
-                <Card 
-                    key={item.id}
-                    className={`drive-item group relative border shadow-sm transition-all cursor-pointer rounded-xl overflow-hidden aspect-[4/3] flex flex-col p-4
-                        ${isSelected ? 'bg-primary/10 border-primary ring-1 ring-primary' : 'bg-card border-border hover:border-primary/50 hover:shadow-md'}
-                    `}
-                    onClick={(e) => handleItemClick(e, item)}
-                    onDoubleClick={(e) => handleItemDoubleClick(e, item)}
-                    onContextMenu={(e) => handleContextMenu(e, item)}
-                >
-                    {/* Selection Checkbox (Visible on hover or selected) */}
-                    <div className={`absolute top-2 left-2 z-10 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                        <div className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-primary border-primary' : 'bg-background border-input'}`}>
-                            {isSelected && <div className="w-2.5 h-1.5 border-l-2 border-b-2 border-primary-foreground -mt-0.5 rotate-[-45deg]" />}
-                        </div>
-                    </div>
-
-                    <div className="flex-1 flex items-center justify-center pointer-events-none">
-                        <ItemIcon item={item} className={item.isVirtual ? "h-16 w-16" : "h-12 w-12"} />
-                    </div>
-
-                    <div className="mt-3 text-center w-full">
-                        <div className="text-sm font-medium text-foreground truncate px-1" title={item.name}>
-                            {item.name}
-                        </div>
-                        {!item.isVirtual && (
-                            <div className="text-[10px] text-muted-foreground mt-0.5 flex justify-center items-center gap-1">
-                                {item.size ? (item.size / 1024).toFixed(1) + ' KB' : 'Item'}
-                            </div>
-                        )}
-                    </div>
-                </Card>
-            );
-            })}
+      {items.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-muted-foreground pointer-events-none">
+          <Folder className="h-12 w-12 mb-4 opacity-20" />
+          <p>{searchQuery ? 'Nu am găsit niciun rezultat.' : 'Acest folder este gol.'}</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-1">
-            {/* List Header */}
-            <div className="grid grid-cols-12 gap-4 px-4 py-2 text-xs font-medium text-muted-foreground border-b border-border">
-                <div className="col-span-6">Name</div>
-                <div className="col-span-2">Size</div>
-                <div className="col-span-4">Type</div>
-            </div>
-            {items.map((item) => {
+        <div className="shrink-0"> {/* Wrapper for content to prevent flex-1 stretching items improperly */}
+          {viewMode === 'grid' ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {items.map((item) => {
                 const isSelected = selectedItemIds.includes(item.id);
                 return (
-                    <div 
+                    <Card 
                         key={item.id}
-                        className={`drive-item group grid grid-cols-12 gap-4 px-4 py-2 items-center rounded-md cursor-pointer transition-colors
-                            ${isSelected ? 'bg-primary/10' : 'hover:bg-accent'}
+                        className={`drive-item group relative border shadow-sm transition-all cursor-pointer rounded-xl overflow-hidden aspect-[4/3] flex flex-col p-4
+                            ${isSelected ? 'bg-primary/10 border-primary ring-1 ring-primary' : 'bg-card border-border hover:border-primary/50 hover:shadow-md'}
                         `}
                         onClick={(e) => handleItemClick(e, item)}
                         onDoubleClick={(e) => handleItemDoubleClick(e, item)}
                         onContextMenu={(e) => handleContextMenu(e, item)}
                     >
-                         <div className="col-span-6 flex items-center gap-3 overflow-hidden">
-                             <div className="flex-shrink-0">
-                                 <ItemIcon item={item} className="h-5 w-5" />
-                             </div>
-                             <span className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : 'text-foreground'}`}>
-                                 {item.name}
-                             </span>
-                         </div>
-                         <div className="col-span-2 text-xs text-muted-foreground">
-                             {!item.isVirtual && item.size ? (item.size / 1024).toFixed(1) + ' KB' : '-'}
-                         </div>
-                         <div className="col-span-4 text-xs text-muted-foreground truncate">
-                             {item.isVirtual ? 'System Folder' : (item.type === 'folder' ? 'Folder' : item.mime_type || 'File')}
-                         </div>
-                    </div>
+                        {/* Selection Checkbox (Visible on hover or selected) */}
+                        <div className={`absolute top-2 left-2 z-10 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                            <div className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-primary border-primary' : 'bg-background border-input'}`}>
+                                {isSelected && <div className="w-2.5 h-1.5 border-l-2 border-b-2 border-primary-foreground -mt-0.5 rotate-[-45deg]" />}
+                            </div>
+                        </div>
+
+                        <div className="flex-1 flex items-center justify-center pointer-events-none">
+                            <ItemIcon item={item} className={item.isVirtual ? "h-16 w-16" : "h-12 w-12"} />
+                        </div>
+
+                        <div className="mt-3 text-center w-full">
+                            <div className="text-sm font-medium text-foreground truncate px-1" title={item.name}>
+                                {item.name}
+                            </div>
+                            {!item.isVirtual && (
+                                <div className="text-[10px] text-muted-foreground mt-0.5 flex justify-center items-center gap-1">
+                                    {item.size ? (item.size / 1024).toFixed(1) + ' KB' : 'Item'}
+                                </div>
+                            )}
+                        </div>
+                    </Card>
                 );
-            })}
+                })}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1">
+                {/* List Header */}
+                <div className="grid grid-cols-12 gap-4 px-4 py-2 text-xs font-medium text-muted-foreground border-b border-border">
+                    <div className="col-span-6">Nume</div>
+                    <div className="col-span-2">Mărime</div>
+                    <div className="col-span-4">Tip</div>
+                </div>
+                {items.map((item) => {
+                    const isSelected = selectedItemIds.includes(item.id);
+                    return (
+                        <div 
+                            key={item.id}
+                            className={`drive-item group grid grid-cols-12 gap-4 px-4 py-2 items-center rounded-md cursor-pointer transition-colors
+                                ${isSelected ? 'bg-primary/10' : 'hover:bg-accent'}
+                            `}
+                            onClick={(e) => handleItemClick(e, item)}
+                            onDoubleClick={(e) => handleItemDoubleClick(e, item)}
+                            onContextMenu={(e) => handleContextMenu(e, item)}
+                        >
+                             <div className="col-span-6 flex items-center gap-3 overflow-hidden">
+                                 <div className="flex-shrink-0">
+                                     <ItemIcon item={item} className="h-5 w-5" />
+                                 </div>
+                                 <span className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : 'text-foreground'}`}>
+                                     {item.name}
+                                 </span>
+                             </div>
+                             <div className="col-span-2 text-xs text-muted-foreground">
+                                 {!item.isVirtual && item.size ? (item.size / 1024).toFixed(1) + ' KB' : '-'}
+                             </div>
+                             <div className="col-span-4 text-xs text-muted-foreground truncate">
+                                 {item.isVirtual ? 'Folder de sistem' : (item.type === 'folder' ? 'Folder' : item.mime_type || 'Fișier')}
+                             </div>
+                        </div>
+                    );
+                })}
+            </div>
+          )}
         </div>
       )}
 
+      {/* This space takes the rest of the vertical area, capturing context clicks correctly */}
+      <div className="flex-1 min-h-[50px]" /> 
+
       {contextMenu && (
           <ContextMenu 
+            key={`${contextMenu.x}-${contextMenu.y}`}
             x={contextMenu.x} 
             y={contextMenu.y} 
             items={contextMenu.items} 

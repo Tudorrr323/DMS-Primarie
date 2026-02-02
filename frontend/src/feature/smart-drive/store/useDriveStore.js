@@ -10,6 +10,7 @@ export const useDriveStore = create((set, get) => ({
   currentPath: [], 
   currentFolderId: VIRTUAL_ROOT, 
   items: [], 
+  searchQuery: '',
   spaceInfo: null,
   isLoading: false,
   viewMode: 'grid',
@@ -20,6 +21,12 @@ export const useDriveStore = create((set, get) => ({
   
   // Selection
   selectedItemIds: [],
+  
+  // Clipboard
+  clipboard: {
+    items: [], // [{ id, type, name }]
+    action: null, // 'cut' | 'copy'
+  },
 
   // Actions
   triggerSidebarRefresh: (targetId) => set((state) => ({
@@ -45,6 +52,73 @@ export const useDriveStore = create((set, get) => ({
   clearSelection: () => set({ selectedItemIds: [] }),
 
   setViewMode: (mode) => set({ viewMode: mode }),
+
+  setSearchQuery: async (query) => {
+    const prevQuery = get().searchQuery;
+    if (query === prevQuery) return;
+
+    set({ searchQuery: query });
+    
+    if (query.trim().length > 0) {
+      set({ isLoading: true, error: null });
+      try {
+        const results = await driveService.searchItems(query);
+        // Doar dacă query-ul curent este încă cel pentru care am făcut search
+        if (get().searchQuery === query) {
+          set({ items: results, isLoading: false });
+        }
+      } catch (err) {
+        if (get().searchQuery === query) {
+          set({ error: err.message, isLoading: false });
+        }
+      }
+    } else {
+      // Refresh current folder when search is cleared, but ONLY if we were searching
+      if (prevQuery.trim().length > 0) {
+        await get().loadFolder(get().currentFolderId);
+      }
+    }
+  },
+
+  setClipboard: (items, action) => {
+    set({ clipboard: { items, action } });
+  },
+
+  paste: async () => {
+    const { clipboard, currentFolderId, spaceInfo } = get();
+    if (!clipboard.action || clipboard.items.length === 0) return;
+    if (currentFolderId === VIRTUAL_ROOT || currentFolderId === SHARED_ROOT || currentFolderId === TRASH_ROOT) {
+        set({ error: "Nu poți insera aici." });
+        return;
+    }
+
+    set({ isLoading: true, error: null });
+    try {
+      for (const item of clipboard.items) {
+        if (clipboard.action === 'cut') {
+          await driveService.moveItem(item.id, item.type, currentFolderId);
+        } else {
+          await driveService.copyItem(item.id, item.type, currentFolderId);
+        }
+      }
+      
+      // Reset clipboard if it was a cut action
+      if (clipboard.action === 'cut') {
+        set({ clipboard: { items: [], action: null } });
+      } else {
+        // Refresh space info if we copied files
+        setTimeout(() => get().refreshSpaceInfo(), 1000);
+      }
+      
+      await get().refreshCurrentFolder();
+      get().clearSelection();
+      get().triggerSidebarRefresh(currentFolderId);
+    } catch (err) {
+      set({ error: "Eroare la paste: " + err.message, isLoading: false });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
 
   // Inițializare
   initializeDrive: async () => {
